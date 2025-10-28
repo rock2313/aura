@@ -1,0 +1,28 @@
+# Crypto Configuration for generating certificates
+# Use cryptogen tool to generate certificates based on this config
+
+OrdererOrgs:
+  - Name: Orderer
+    Domain: landregistry.com
+    EnableNodeOUs: true
+    Specs:
+      - Hostname: orderer
+    Users:
+      Count: 1
+
+PeerOrgs:
+  - Name: Org1
+    Domain: org1.landregistry.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+    Users:
+      Count: 2
+
+  - Name: Org2
+    Domain: org2.landregistry.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+    Users:
+      Count: 2

@@ -1,0 +1,112 @@
+# Hyperledger Fabric Network Configuration
+# Deploy this configuration on your infrastructure
+
+name: "land-registry-network"
+version: "1.0"
+client:
+  organization: Org1
+  logging:
+    level: info
+  
+  # Define the peer and orderer organizations
+  cryptoconfig:
+    path: "./crypto-config"
+
+  # Connection options for the client
+  credentialStore:
+    path: "./hfc-key-store"
+    cryptoStore:
+      path: "./hfc-key-store"
+
+# Channels configuration
+channels:
+  landregistry:
+    orderers:
+      - orderer.landregistry.com
+    
+    peers:
+      peer0.org1.landregistry.com:
+        endorsingPeer: true
+        chaincodeQuery: true
+        ledgerQuery: true
+        eventSource: true
+      
+      peer0.org2.landregistry.com:
+        endorsingPeer: true
+        chaincodeQuery: true
+        ledgerQuery: true
+        eventSource: true
+    
+    chaincodes:
+      - property-contract:v1.0
+      - escrow-contract:v1.0
+
+# Organizations definition
+organizations:
+  Org1:
+    mspid: Org1MSP
+    cryptoPath: peerOrganizations/org1.landregistry.com/users/{username}@org1.landregistry.com/msp
+    peers:
+      - peer0.org1.landregistry.com
+    certificateAuthorities:
+      - ca.org1.landregistry.com
+
+  Org2:
+    mspid: Org2MSP
+    cryptoPath: peerOrganizations/org2.landregistry.com/users/{username}@org2.landregistry.com/msp
+    peers:
+      - peer0.org2.landregistry.com
+    certificateAuthorities:
+      - ca.org2.landregistry.com
+
+# Orderers configuration
+orderers:
+  orderer.landregistry.com:
+    url: grpcs://localhost:7050
+    grpcOptions:
+      ssl-target-name-override: orderer.landregistry.com
+      grpc-max-send-message-length: 15
+    tlsCACerts:
+      path: ./crypto-config/ordererOrganizations/landregistry.com/orderers/orderer.landregistry.com/tls/ca.crt
+
+# Peers configuration
+peers:
+  peer0.org1.landregistry.com:
+    url: grpcs://localhost:7051
+    grpcOptions:
+      ssl-target-name-override: peer0.org1.landregistry.com
+      grpc.http2.keepalive_time: 15
+    tlsCACerts:
+      path: ./crypto-config/peerOrganizations/org1.landregistry.com/peers/peer0.org1.landregistry.com/tls/ca.crt
+
+  peer0.org2.landregistry.com:
+    url: grpcs://localhost:8051
+    grpcOptions:
+      ssl-target-name-override: peer0.org2.landregistry.com
+      grpc.http2.keepalive_time: 15
+    tlsCACerts:
+      path: ./crypto-config/peerOrganizations/org2.landregistry.com/peers/peer0.org2.landregistry.com/tls/ca.crt
+
+# Certificate Authorities
+certificateAuthorities:
+  ca.org1.landregistry.com:
+    url: https://localhost:7054
+    httpOptions:
+      verify: false
+    tlsCACerts:
+      path: ./crypto-config/peerOrganizations/org1.landregistry.com/ca/ca.org1.landregistry.com-cert.pem
+    registrar:
+      - enrollId: admin
+        enrollSecret: adminpw
+    caName: ca.org1.landregistry.com
+
+  ca.org2.landregistry.com:
+    url: https://localhost:8054
+    httpOptions:
+      verify: false
+    tlsCACerts:
+      path: ./crypto-config/peerOrganizations/org2.landregistry.com/ca/ca.org2.landregistry.com-cert.pem
+    registrar:
+      - enrollId: admin
+        enrollSecret: adminpw
+    caName: ca.org2.landregistry.com
