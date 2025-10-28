@@ -6,20 +6,34 @@ interface NavbarProps {
   isLoggedIn: boolean;
   userName?: string;
   userId?: string;
+  userRole?: string;
   onLogout: () => void;
 }
 
-export const Navbar = ({ isLoggedIn, userName, userId, onLogout }: NavbarProps) => {
+export const Navbar = ({ isLoggedIn, userName, userId, userRole, onLogout }: NavbarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems = [
-    { path: '/dashboard', label: 'Dashboard' },
-    { path: '/properties', label: 'Properties' },
-    { path: '/transactions', label: 'Transactions' },
-    { path: '/add-property', label: 'Add Property' },
-    { path: '/prediction', label: 'Price Prediction' },
-  ];
+  // Role-based navigation items
+  const getNavItems = () => {
+    const baseItems = [
+      { path: '/dashboard', label: 'Dashboard' },
+      { path: '/properties', label: 'Properties' },
+      { path: '/transactions', label: 'Transactions' },
+    ];
+
+    if (userRole === 'SELLER') {
+      baseItems.push({ path: '/add-property', label: 'Add Property' });
+    }
+
+    if (userRole === 'ADMIN') {
+      baseItems.push({ path: '/admin', label: 'Admin Panel' });
+    }
+
+    return baseItems;
+  };
+
+  const navItems = getNavItems();
 
   return (
     <nav className="bg-gradient-to-r from-primary to-[hsl(221,83%,53%)] text-primary-foreground shadow-lg">
@@ -48,7 +62,9 @@ export const Navbar = ({ isLoggedIn, userName, userId, onLogout }: NavbarProps) 
               ))}
               <div className="border-l border-white/30 pl-4 ml-4">
                 <div className="text-sm font-semibold">{userName || 'John Doe'}</div>
-                <div className="text-xs opacity-80">Owner ID: {userId || 'OW123'}</div>
+                <div className="text-xs opacity-80">
+                  {userRole} | ID: {userId?.substring(0, 12) || 'OW123'}
+                </div>
               </div>
               <Button
                 variant="ghost"

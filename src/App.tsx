@@ -10,13 +10,28 @@ import { Dashboard } from "@/pages/Dashboard";
 import { Properties } from "@/pages/Properties";
 import { Transactions } from "@/pages/Transactions";
 import { AddProperty } from "@/pages/AddProperty";
-import { Prediction } from "@/pages/Prediction";
+import { AdminDashboard } from "@/pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userInfo, setUserInfo] = useState({
+    userId: '',
+    userName: '',
+    userRole: '',
+  });
+
+  const handleKYCComplete = (userId: string, userName: string, userRole: string) => {
+    setUserInfo({ userId, userName, userRole });
+    setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setUserInfo({ userId: '', userName: '', userRole: '' });
+  };
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -27,9 +42,10 @@ const App = () => {
           {isLoggedIn && (
             <Navbar
               isLoggedIn={isLoggedIn}
-              userName="John Doe"
-              userId="OW123"
-              onLogout={() => setIsLoggedIn(false)}
+              userName={userInfo.userName}
+              userId={userInfo.userId}
+              userRole={userInfo.userRole}
+              onLogout={handleLogout}
             />
           )}
           <Routes>
@@ -39,7 +55,7 @@ const App = () => {
                 isLoggedIn ? (
                   <Navigate to="/dashboard" replace />
                 ) : (
-                  <KYC onComplete={() => setIsLoggedIn(true)} />
+                  <KYC onComplete={handleKYCComplete} />
                 )
               }
             />
@@ -60,8 +76,8 @@ const App = () => {
               element={isLoggedIn ? <AddProperty /> : <Navigate to="/" replace />}
             />
             <Route
-              path="/prediction"
-              element={isLoggedIn ? <Prediction /> : <Navigate to="/" replace />}
+              path="/admin"
+              element={isLoggedIn ? <AdminDashboard /> : <Navigate to="/" replace />}
             />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

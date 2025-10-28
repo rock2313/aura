@@ -24,6 +24,7 @@ class FabricClient {
   }
 
   async invokeChaincode(
+    chaincodeName: string,
     functionName: string,
     args: string[]
   ): Promise<any> {
@@ -32,8 +33,8 @@ class FabricClient {
     }
 
     // In production: Submit transaction to chaincode
-    console.log(`Invoking chaincode: ${functionName}`, args);
-    
+    console.log(`Invoking chaincode ${chaincodeName}: ${functionName}`, args);
+
     // Mock response - replace with actual transaction
     return {
       txId: `tx_${Date.now()}`,
@@ -43,6 +44,7 @@ class FabricClient {
   }
 
   async queryChaincode(
+    chaincodeName: string,
     functionName: string,
     args: string[]
   ): Promise<any> {
@@ -51,8 +53,8 @@ class FabricClient {
     }
 
     // In production: Query chaincode
-    console.log(`Querying chaincode: ${functionName}`, args);
-    
+    console.log(`Querying chaincode ${chaincodeName}: ${functionName}`, args);
+
     // Mock response
     return {
       status: 'SUCCESS',
@@ -76,41 +78,238 @@ const fabricConfig: FabricConfig = {
 
 export const fabricClient = new FabricClient(fabricConfig);
 
+// User chaincode functions
+export const userChaincode = {
+  // Register new user on blockchain with credentials and documents
+  async registerUser(userData: {
+    userId: string;
+    name: string;
+    email: string;
+    phone: string;
+    aadhar: string;
+    pan: string;
+    address: string;
+    role: string; // BUYER, SELLER, ADMIN
+    walletAddress: string;
+    passwordHash: string;
+  }) {
+    return fabricClient.invokeChaincode('user-contract', 'RegisterUser', [
+      userData.userId,
+      userData.name,
+      userData.email,
+      userData.phone,
+      userData.aadhar,
+      userData.pan,
+      userData.address,
+      userData.role,
+      userData.walletAddress,
+      userData.passwordHash
+    ]);
+  },
+
+  // Get user details
+  async getUser(userId: string) {
+    return fabricClient.queryChaincode('user-contract', 'GetUser', [userId]);
+  },
+
+  // Add document to user profile
+  async addDocument(userId: string, documentId: string, documentType: string, documentHash: string) {
+    return fabricClient.invokeChaincode('user-contract', 'AddDocument', [
+      userId,
+      documentId,
+      documentType,
+      documentHash
+    ]);
+  },
+
+  // Verify user document (Admin only)
+  async verifyDocument(userId: string, documentId: string, adminId: string) {
+    return fabricClient.invokeChaincode('user-contract', 'VerifyDocument', [
+      userId,
+      documentId,
+      adminId
+    ]);
+  },
+
+  // Update last login
+  async updateLastLogin(userId: string) {
+    return fabricClient.invokeChaincode('user-contract', 'UpdateLastLogin', [userId]);
+  },
+
+  // Get users by role
+  async getUsersByRole(role: string) {
+    return fabricClient.queryChaincode('user-contract', 'GetUsersByRole', [role]);
+  }
+};
+
 // Property chaincode functions
 export const propertyChaincode = {
   // Register new property on blockchain
   async registerProperty(propertyData: {
     propertyId: string;
     owner: string;
+    ownerName: string;
     location: string;
     area: number;
     price: number;
+    propertyType: string;
+    description: string;
+    latitude: number;
+    longitude: number;
   }) {
-    return fabricClient.invokeChaincode('RegisterProperty', [
+    return fabricClient.invokeChaincode('property-contract', 'RegisterProperty', [
       propertyData.propertyId,
       propertyData.owner,
+      propertyData.ownerName,
       propertyData.location,
       propertyData.area.toString(),
-      propertyData.price.toString()
+      propertyData.price.toString(),
+      propertyData.propertyType,
+      propertyData.description,
+      propertyData.latitude.toString(),
+      propertyData.longitude.toString()
+    ]);
+  },
+
+  // Verify property (Admin only)
+  async verifyProperty(propertyId: string, verifierId: string) {
+    return fabricClient.invokeChaincode('property-contract', 'VerifyProperty', [
+      propertyId,
+      verifierId
     ]);
   },
 
   // Transfer property ownership
-  async transferProperty(propertyId: string, newOwner: string) {
-    return fabricClient.invokeChaincode('TransferProperty', [
+  async transferProperty(propertyId: string, newOwner: string, newOwnerName: string, transactionId: string) {
+    return fabricClient.invokeChaincode('property-contract', 'TransferProperty', [
       propertyId,
-      newOwner
+      newOwner,
+      newOwnerName,
+      transactionId
     ]);
   },
 
   // Get property details
   async getProperty(propertyId: string) {
-    return fabricClient.queryChaincode('GetProperty', [propertyId]);
+    return fabricClient.queryChaincode('property-contract', 'GetProperty', [propertyId]);
+  },
+
+  // Get properties by owner
+  async getPropertiesByOwner(owner: string) {
+    return fabricClient.queryChaincode('property-contract', 'GetPropertiesByOwner', [owner]);
+  },
+
+  // Get properties by status
+  async getPropertiesByStatus(status: string) {
+    return fabricClient.queryChaincode('property-contract', 'GetPropertiesByStatus', [status]);
+  },
+
+  // Get all properties
+  async getAllProperties() {
+    return fabricClient.queryChaincode('property-contract', 'GetAllProperties', []);
   },
 
   // Get property history
   async getPropertyHistory(propertyId: string) {
-    return fabricClient.queryChaincode('GetPropertyHistory', [propertyId]);
+    return fabricClient.queryChaincode('property-contract', 'GetPropertyHistory', [propertyId]);
+  },
+
+  // Update property status
+  async updatePropertyStatus(propertyId: string, status: string) {
+    return fabricClient.invokeChaincode('property-contract', 'UpdatePropertyStatus', [
+      propertyId,
+      status
+    ]);
+  }
+};
+
+// Offer chaincode functions
+export const offerChaincode = {
+  // Create new offer (Buyer)
+  async createOffer(offerData: {
+    offerId: string;
+    propertyId: string;
+    buyerId: string;
+    buyerName: string;
+    sellerId: string;
+    sellerName: string;
+    offerAmount: number;
+    message: string;
+  }) {
+    return fabricClient.invokeChaincode('offer-contract', 'CreateOffer', [
+      offerData.offerId,
+      offerData.propertyId,
+      offerData.buyerId,
+      offerData.buyerName,
+      offerData.sellerId,
+      offerData.sellerName,
+      offerData.offerAmount.toString(),
+      offerData.message
+    ]);
+  },
+
+  // Accept offer (Seller)
+  async acceptOffer(offerId: string) {
+    return fabricClient.invokeChaincode('offer-contract', 'AcceptOffer', [offerId]);
+  },
+
+  // Reject offer (Seller)
+  async rejectOffer(offerId: string) {
+    return fabricClient.invokeChaincode('offer-contract', 'RejectOffer', [offerId]);
+  },
+
+  // Admin verify offer and record Sepolia transaction
+  async adminVerifyOffer(offerId: string, adminId: string, sepoliaTxHash: string) {
+    return fabricClient.invokeChaincode('offer-contract', 'AdminVerifyOffer', [
+      offerId,
+      adminId,
+      sepoliaTxHash
+    ]);
+  },
+
+  // Complete offer after land transfer
+  async completeOffer(offerId: string) {
+    return fabricClient.invokeChaincode('offer-contract', 'CompleteOffer', [offerId]);
+  },
+
+  // Cancel offer
+  async cancelOffer(offerId: string) {
+    return fabricClient.invokeChaincode('offer-contract', 'CancelOffer', [offerId]);
+  },
+
+  // Get offer details
+  async getOffer(offerId: string) {
+    return fabricClient.queryChaincode('offer-contract', 'GetOffer', [offerId]);
+  },
+
+  // Get offers by property
+  async getOffersByProperty(propertyId: string) {
+    return fabricClient.queryChaincode('offer-contract', 'GetOffersByProperty', [propertyId]);
+  },
+
+  // Get offers by buyer
+  async getOffersByBuyer(buyerId: string) {
+    return fabricClient.queryChaincode('offer-contract', 'GetOffersByBuyer', [buyerId]);
+  },
+
+  // Get offers by seller
+  async getOffersBySeller(sellerId: string) {
+    return fabricClient.queryChaincode('offer-contract', 'GetOffersBySeller', [sellerId]);
+  },
+
+  // Get offers by status
+  async getOffersByStatus(status: string) {
+    return fabricClient.queryChaincode('offer-contract', 'GetOffersByStatus', [status]);
+  },
+
+  // Get pending admin verifications (Admin only)
+  async getPendingAdminVerifications() {
+    return fabricClient.queryChaincode('offer-contract', 'GetPendingAdminVerifications', []);
+  },
+
+  // Get offer history
+  async getOfferHistory(offerId: string) {
+    return fabricClient.queryChaincode('offer-contract', 'GetOfferHistory', [offerId]);
   }
 };
 
@@ -124,7 +323,7 @@ export const escrowChaincode = {
     seller: string;
     amount: number;
   }) {
-    return fabricClient.invokeChaincode('CreateEscrow', [
+    return fabricClient.invokeChaincode('escrow-contract', 'CreateEscrow', [
       escrowData.escrowId,
       escrowData.propertyId,
       escrowData.buyer,
@@ -133,29 +332,48 @@ export const escrowChaincode = {
     ]);
   },
 
+  // Fund escrow with transaction hash
+  async fundEscrow(escrowId: string, txHash: string) {
+    return fabricClient.invokeChaincode('escrow-contract', 'FundEscrow', [
+      escrowId,
+      txHash
+    ]);
+  },
+
   // Release escrow funds
-  async releaseEscrow(escrowId: string) {
-    return fabricClient.invokeChaincode('ReleaseEscrow', [escrowId]);
+  async releaseEscrow(escrowId: string, releaseTxHash: string) {
+    return fabricClient.invokeChaincode('escrow-contract', 'ReleaseEscrow', [
+      escrowId,
+      releaseTxHash
+    ]);
   },
 
   // Cancel escrow and refund
-  async cancelEscrow(escrowId: string) {
-    return fabricClient.invokeChaincode('CancelEscrow', [escrowId]);
+  async cancelEscrow(escrowId: string, refundTxHash: string) {
+    return fabricClient.invokeChaincode('escrow-contract', 'CancelEscrow', [
+      escrowId,
+      refundTxHash
+    ]);
   },
 
   // Get escrow status
   async getEscrowStatus(escrowId: string) {
-    return fabricClient.queryChaincode('GetEscrow', [escrowId]);
+    return fabricClient.queryChaincode('escrow-contract', 'GetEscrow', [escrowId]);
+  },
+
+  // Get all escrows
+  async getAllEscrows() {
+    return fabricClient.queryChaincode('escrow-contract', 'GetAllEscrows', []);
   }
 };
 
-// MetaMask integration for payments
-export const metamaskService = {
+// Sepolia Network Service for Admin Verification
+export const sepoliaService = {
   async connectWallet(): Promise<string | null> {
     if (typeof window.ethereum !== 'undefined') {
       try {
-        const accounts = await window.ethereum.request({ 
-          method: 'eth_requestAccounts' 
+        const accounts = await window.ethereum.request({
+          method: 'eth_requestAccounts'
         });
         return accounts[0];
       } catch (error) {
@@ -215,6 +433,40 @@ export const metamaskService = {
       return transactionHash;
     } catch (error) {
       console.error('Payment failed:', error);
+      return null;
+    }
+  },
+
+  // Admin records transaction on Sepolia network
+  async recordTransaction(offerId: string, buyerAddress: string, sellerAddress: string, amount: string): Promise<string | null> {
+    try {
+      // This would typically call a smart contract on Sepolia
+      // For now, we'll just send a transaction with the offer ID in the data field
+      const txHash = await window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: window.ethereum.selectedAddress,
+          to: sellerAddress,
+          value: (parseFloat(amount) * 1e18).toString(16),
+          data: '0x' + Buffer.from(offerId).toString('hex') // Encode offerId in transaction data
+        }],
+      });
+      return txHash;
+    } catch (error) {
+      console.error('Transaction recording failed:', error);
+      return null;
+    }
+  },
+
+  async getTransactionStatus(txHash: string): Promise<any> {
+    try {
+      const receipt = await window.ethereum.request({
+        method: 'eth_getTransactionReceipt',
+        params: [txHash],
+      });
+      return receipt;
+    } catch (error) {
+      console.error('Error fetching transaction status:', error);
       return null;
     }
   }
