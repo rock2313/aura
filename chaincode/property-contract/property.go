@@ -20,7 +20,6 @@ type Property struct {
 	Location         string    `json:"location"`
 	Area             float64   `json:"area"`
 	Price            float64   `json:"price"`
-	PredictedPrice   float64   `json:"predictedPrice"`
 	Status           string    `json:"status"` // AVAILABLE, PENDING_VERIFICATION, VERIFIED, UNDER_CONTRACT, SOLD
 	PropertyType     string    `json:"propertyType"` // RESIDENTIAL, COMMERCIAL, AGRICULTURAL
 	Description      string    `json:"description"`
@@ -156,23 +155,22 @@ func (c *PropertyContract) RegisterProperty(ctx contractapi.TransactionContextIn
 	timestamp := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos))
 
 	property := Property{
-		PropertyID:     propertyID,
-		Owner:          owner,
-		OwnerName:      ownerName,
-		Location:       location,
-		Area:           area,
-		Price:          price,
-		PredictedPrice: 0,
-		Status:         "PENDING_VERIFICATION",
-		PropertyType:   propertyType,
-		Description:    description,
-		Documents:      []string{},
-		VerifiedBy:     "",
-		RegisteredAt:   timestamp,
-		LastUpdated:    timestamp,
-		Views:          0,
-		Latitude:       latitude,
-		Longitude:      longitude,
+		PropertyID:   propertyID,
+		Owner:        owner,
+		OwnerName:    ownerName,
+		Location:     location,
+		Area:         area,
+		Price:        price,
+		Status:       "PENDING_VERIFICATION",
+		PropertyType: propertyType,
+		Description:  description,
+		Documents:    []string{},
+		VerifiedBy:   "",
+		RegisteredAt: timestamp,
+		LastUpdated:  timestamp,
+		Views:        0,
+		Latitude:     latitude,
+		Longitude:    longitude,
 	}
 
 	propertyJSON, err := json.Marshal(property)
@@ -208,7 +206,7 @@ func (c *PropertyContract) VerifyProperty(ctx contractapi.TransactionContextInte
 	return ctx.GetStub().PutState(propertyID, propertyJSON)
 }
 
-func (c *PropertyContract) UpdatePropertyPrice(ctx contractapi.TransactionContextInterface, propertyID string, price float64, predictedPrice float64) error {
+func (c *PropertyContract) UpdatePropertyPrice(ctx contractapi.TransactionContextInterface, propertyID string, price float64) error {
 	property, err := c.GetProperty(ctx, propertyID)
 	if err != nil {
 		return err
@@ -221,7 +219,6 @@ func (c *PropertyContract) UpdatePropertyPrice(ctx contractapi.TransactionContex
 	timestamp := time.Unix(txTimestamp.Seconds, int64(txTimestamp.Nanos))
 
 	property.Price = price
-	property.PredictedPrice = predictedPrice
 	property.LastUpdated = timestamp
 
 	propertyJSON, err := json.Marshal(property)
