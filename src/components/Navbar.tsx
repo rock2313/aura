@@ -6,34 +6,20 @@ interface NavbarProps {
   isLoggedIn: boolean;
   userName?: string;
   userId?: string;
-  userRole?: string;
   onLogout: () => void;
 }
 
-export const Navbar = ({ isLoggedIn, userName, userId, userRole, onLogout }: NavbarProps) => {
+export const Navbar = ({ isLoggedIn, userName, userId, onLogout }: NavbarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Role-based navigation items
-  const getNavItems = () => {
-    const baseItems = [
-      { path: '/dashboard', label: 'Dashboard' },
-      { path: '/properties', label: 'Properties' },
-      { path: '/transactions', label: 'Transactions' },
-    ];
-
-    if (userRole === 'SELLER') {
-      baseItems.push({ path: '/add-property', label: 'Add Property' });
-    }
-
-    if (userRole === 'ADMIN') {
-      baseItems.push({ path: '/admin', label: 'Admin Panel' });
-    }
-
-    return baseItems;
-  };
-
-  const navItems = getNavItems();
+  // All users can access all features (buy and sell)
+  const navItems = [
+    { path: '/dashboard', label: 'Dashboard' },
+    { path: '/properties', label: 'Properties' },
+    { path: '/add-property', label: 'Add Property' },
+    { path: '/transactions', label: 'Transactions' },
+  ];
 
   return (
     <nav className="bg-gradient-to-r from-primary to-[hsl(221,83%,53%)] text-primary-foreground shadow-lg">
@@ -45,7 +31,7 @@ export const Navbar = ({ isLoggedIn, userName, userId, userRole, onLogout }: Nav
             </div>
             <span className="text-xl font-bold">LandChain Registry</span>
           </div>
-          
+
           {isLoggedIn && (
             <div className="flex items-center gap-4">
               {navItems.map((item) => (
@@ -61,9 +47,9 @@ export const Navbar = ({ isLoggedIn, userName, userId, userRole, onLogout }: Nav
                 </Button>
               ))}
               <div className="border-l border-white/30 pl-4 ml-4">
-                <div className="text-sm font-semibold">{userName || 'John Doe'}</div>
+                <div className="text-sm font-semibold">{userName || 'User'}</div>
                 <div className="text-xs opacity-80">
-                  {userRole} | ID: {userId?.substring(0, 12) || 'OW123'}
+                  ID: {userId?.substring(5, 17) || 'N/A'}
                 </div>
               </div>
               <Button
@@ -71,6 +57,7 @@ export const Navbar = ({ isLoggedIn, userName, userId, userRole, onLogout }: Nav
                 size="icon"
                 onClick={onLogout}
                 className="text-primary-foreground hover:bg-white/20"
+                title="Logout"
               >
                 <LogOut className="h-5 w-5" />
               </Button>

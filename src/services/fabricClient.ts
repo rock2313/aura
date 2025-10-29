@@ -21,6 +21,11 @@ class FabricClient {
     // In production: Initialize Fabric SDK gateway connection
     console.log('Connecting to Fabric network:', this.config.networkUrl);
     this.isConnected = true;
+
+    // Auto-connect for demo
+    if (!this.isConnected) {
+      await this.connect();
+    }
   }
 
   async invokeChaincode(
@@ -28,18 +33,25 @@ class FabricClient {
     functionName: string,
     args: string[]
   ): Promise<any> {
+    // Auto-connect if not connected
     if (!this.isConnected) {
-      throw new Error('Not connected to Fabric network');
+      await this.connect();
     }
 
     // In production: Submit transaction to chaincode
-    console.log(`Invoking chaincode ${chaincodeName}: ${functionName}`, args);
+    console.log(`✅ Invoking chaincode ${chaincodeName}: ${functionName}`, args);
+
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Mock response - replace with actual transaction
     return {
       txId: `tx_${Date.now()}`,
       status: 'SUCCESS',
-      payload: { message: 'Transaction submitted to Fabric network' }
+      payload: {
+        message: 'Transaction submitted to Fabric network',
+        data: args
+      }
     };
   }
 

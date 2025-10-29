@@ -20,17 +20,17 @@ const App = () => {
   const [userInfo, setUserInfo] = useState({
     userId: '',
     userName: '',
-    userRole: '',
   });
 
-  const handleKYCComplete = (userId: string, userName: string, userRole: string) => {
-    setUserInfo({ userId, userName, userRole });
+  const handleKYCComplete = (userId: string, userName: string) => {
+    setUserInfo({ userId, userName });
     setIsLoggedIn(true);
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setUserInfo({ userId: '', userName: '', userRole: '' });
+    setUserInfo({ userId: '', userName: '' });
+    localStorage.removeItem('currentUser');
   };
 
   return (
@@ -44,7 +44,6 @@ const App = () => {
               isLoggedIn={isLoggedIn}
               userName={userInfo.userName}
               userId={userInfo.userId}
-              userRole={userInfo.userRole}
               onLogout={handleLogout}
             />
           )}

@@ -5,18 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { userChaincode, sepoliaService } from '@/services/fabricClient';
 
 interface KYCProps {
-  onComplete: (userId: string, userName: string, userRole: string) => void;
+  onComplete: (userId: string, userName: string) => void;
 }
 
 export const KYC = ({ onComplete }: KYCProps) => {
@@ -28,7 +21,6 @@ export const KYC = ({ onComplete }: KYCProps) => {
     pan: '',
     password: '',
     address: '',
-    role: '',
     walletAddress: '',
     agreedToTerms: false,
   });
@@ -40,7 +32,7 @@ export const KYC = ({ onComplete }: KYCProps) => {
     if (address) {
       setFormData({ ...formData, walletAddress: address });
       toast({
-        title: 'Wallet Connected',
+        title: 'Wallet Connected ✅',
         description: `Connected to ${address.substring(0, 6)}...${address.substring(38)}`,
       });
     }
@@ -57,15 +49,6 @@ export const KYC = ({ onComplete }: KYCProps) => {
       return;
     }
 
-    if (!formData.walletAddress) {
-      toast({
-        title: 'Error',
-        description: 'Please connect your wallet',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setLoading(true);
     try {
       // Generate user ID
@@ -74,8 +57,8 @@ export const KYC = ({ onComplete }: KYCProps) => {
       // Hash password (in production, use proper hashing like bcrypt)
       const passwordHash = btoa(formData.password);
 
-      // Register user on Hyperledger Fabric
-      await userChaincode.registerUser({
+      // Register user on Hyperledger Fabric (users can both buy and sell)
+      const result = await userChaincode.registerUser({
         userId,
         name: formData.fullName,
         email: formData.email,
@@ -83,22 +66,36 @@ export const KYC = ({ onComplete }: KYCProps) => {
         aadhar: formData.aadhar,
         pan: formData.pan,
         address: formData.address,
-        role: formData.role,
-        walletAddress: formData.walletAddress,
+        role: 'USER', // Regular user can both buy and sell
+        walletAddress: formData.walletAddress || 'Not connected',
         passwordHash,
       });
 
+      console.log('✅ Registration successful:', result);
+
+      // Store user data in localStorage for demo
+      localStorage.setItem('currentUser', JSON.stringify({
+        userId,
+        name: formData.fullName,
+        email: formData.email,
+        role: 'USER'
+      }));
+
       toast({
-        title: 'Registration Successful',
-        description: 'Your credentials have been stored on the blockchain',
+        title: 'Registration Successful! 🎉',
+        description: 'Welcome to LandChain Registry. You can now buy and sell properties.',
+        duration: 5000,
       });
 
-      onComplete(userId, formData.fullName, formData.role);
-    } catch (error) {
-      console.error('Registration error:', error);
+      // Small delay to show success message
+      setTimeout(() => {
+        onComplete(userId, formData.fullName);
+      }, 1000);
+    } catch (error: any) {
+      console.error('❌ Registration error:', error);
       toast({
         title: 'Registration Failed',
-        description: 'Failed to register user. Please try again.',
+        description: error?.message || 'Please try again. Check console for details.',
         variant: 'destructive',
       });
     } finally {
@@ -113,9 +110,12 @@ export const KYC = ({ onComplete }: KYCProps) => {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-full mb-4">
             <User className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold mb-2">KYC Verification</h1>
+          <h1 className="text-3xl font-bold mb-2">Create Account</h1>
           <p className="text-muted-foreground">
-            Complete your verification to access the Land Registry System
+            Register to buy and sell land properties on blockchain
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            As a registered user, you can both list properties for sale and purchase properties
           </p>
         </div>
 
@@ -192,27 +192,10 @@ export const KYC = ({ onComplete }: KYCProps) => {
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
+                minLength={6}
                 className="bg-input text-primary-foreground"
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="role">Select Your Role *</Label>
-            <Select
-              value={formData.role}
-              onValueChange={(value) => setFormData({ ...formData, role: value })}
-              required
-            >
-              <SelectTrigger className="bg-input text-primary-foreground">
-                <SelectValue placeholder="Choose your role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="BUYER">Buyer - I want to purchase land</SelectItem>
-                <SelectItem value="SELLER">Seller - I want to sell my land</SelectItem>
-                <SelectItem value="ADMIN">Admin - I verify transactions</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="space-y-2">
@@ -228,11 +211,11 @@ export const KYC = ({ onComplete }: KYCProps) => {
           </div>
 
           <div className="space-y-2">
-            <Label>Connect Wallet (Sepolia Network) *</Label>
+            <Label>Connect Wallet (Optional)</Label>
             <div className="border-2 border-dashed border-border rounded-lg p-6 text-center bg-muted/50">
               {formData.walletAddress ? (
                 <div>
-                  <p className="text-sm font-medium text-green-600 mb-1">Wallet Connected</p>
+                  <p className="text-sm font-medium text-green-600 mb-1">✅ Wallet Connected</p>
                   <p className="text-xs text-muted-foreground font-mono">
                     {formData.walletAddress.substring(0, 10)}...{formData.walletAddress.substring(38)}
                   </p>
@@ -248,7 +231,7 @@ export const KYC = ({ onComplete }: KYCProps) => {
                     Connect MetaMask Wallet
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Required for blockchain transactions
+                    Optional - You can connect later for transactions
                   </p>
                 </>
               )}
@@ -256,11 +239,11 @@ export const KYC = ({ onComplete }: KYCProps) => {
           </div>
 
           <div className="space-y-2">
-            <Label>Upload Documents</Label>
+            <Label>Upload Documents (Optional)</Label>
             <div className="border-2 border-dashed border-border rounded-lg p-8 text-center bg-muted/50">
               <Upload className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
               <p className="text-sm font-medium mb-1">Upload Aadhar and PAN documents</p>
-              <p className="text-xs text-muted-foreground">PDF, JPG or PNG (Max 5MB) - Stored on blockchain</p>
+              <p className="text-xs text-muted-foreground">PDF, JPG or PNG (Max 5MB) - Will be stored on blockchain</p>
             </div>
           </div>
 
@@ -273,7 +256,7 @@ export const KYC = ({ onComplete }: KYCProps) => {
               }
             />
             <Label htmlFor="terms" className="text-sm cursor-pointer">
-              I agree to the Terms and Conditions and Privacy Policy
+              I agree to the Terms and Conditions and Privacy Policy *
             </Label>
           </div>
 
@@ -283,7 +266,14 @@ export const KYC = ({ onComplete }: KYCProps) => {
             size="lg"
             disabled={loading}
           >
-            {loading ? 'Registering on Blockchain...' : 'Complete Verification'}
+            {loading ? (
+              <>
+                <span className="animate-spin mr-2">⚡</span>
+                Registering on Blockchain...
+              </>
+            ) : (
+              'Create Account'
+            )}
           </Button>
         </form>
       </div>
