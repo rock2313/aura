@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { userChaincode, sepoliaService } from '@/services/fabricClient';
+import { apiClient } from '@/services/apiClient';
+import { sepoliaService } from '@/services/fabricClient';
 
 interface KYCProps {
   onComplete: (userId: string, userName: string) => void;
@@ -57,8 +58,8 @@ export const KYC = ({ onComplete }: KYCProps) => {
       // Hash password (in production, use proper hashing like bcrypt)
       const passwordHash = btoa(formData.password);
 
-      // Register user on Hyperledger Fabric (users can both buy and sell)
-      const result = await userChaincode.registerUser({
+      // Register user via backend API (will be stored on blockchain)
+      const result = await apiClient.registerUser({
         userId,
         name: formData.fullName,
         email: formData.email,
@@ -69,9 +70,11 @@ export const KYC = ({ onComplete }: KYCProps) => {
         role: 'USER', // Regular user can both buy and sell
         walletAddress: formData.walletAddress || 'Not connected',
         passwordHash,
+        isVerified: false,
+        documents: []
       });
 
-      console.log('✅ Registration successful:', result);
+      console.log('✅ Registration successful via backend:', result);
 
       // Store user data in localStorage for demo
       localStorage.setItem('currentUser', JSON.stringify({

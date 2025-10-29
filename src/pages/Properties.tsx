@@ -8,8 +8,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { propertyChaincode, offerChaincode } from '@/services/fabricClient';
-import type { Property } from '@/services/mockDataStore';
+import { apiClient } from '@/services/apiClient';
+
+interface Property {
+  propertyId: string;
+  owner: string;
+  ownerName: string;
+  location: string;
+  area: number;
+  price: number;
+  status: string;
+  propertyType: string;
+  description: string;
+  registeredAt: string;
+}
 
 export const Properties = () => {
   const { toast } = useToast();
@@ -36,9 +48,9 @@ export const Properties = () => {
 
   const loadProperties = async () => {
     try {
-      const result = await propertyChaincode.getAllProperties();
-      if (result.status === 'SUCCESS' && result.payload?.data) {
-        setProperties(result.payload.data);
+      const result = await apiClient.getAllProperties();
+      if (result.success && result.data) {
+        setProperties(result.data);
       }
     } catch (error) {
       console.error('Failed to load properties:', error);
@@ -87,7 +99,7 @@ export const Properties = () => {
     try {
       const offerId = `OFFER_${Date.now()}`;
 
-      await offerChaincode.createOffer({
+      await apiClient.createOffer({
         offerId,
         propertyId: selectedProperty.propertyId,
         buyerId: currentUser.userId,
@@ -98,7 +110,7 @@ export const Properties = () => {
         message: offerMessage,
       });
 
-      console.log('✅ Offer created successfully:', offerId);
+      console.log('✅ Offer created via backend:', offerId);
 
       toast({
         title: 'Offer Submitted! 🎉',

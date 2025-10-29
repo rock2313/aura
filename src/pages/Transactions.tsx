@@ -3,8 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, ArrowRight, Calendar, DollarSign, FileText } from "lucide-react";
-import { mockDataStore } from "@/services/mockDataStore";
-import type { Transaction } from "@/services/mockDataStore";
+import { apiClient } from "@/services/apiClient";
+
+interface Transaction {
+  transactionId: string;
+  propertyId: string;
+  fromOwner: string;
+  toOwner: string;
+  amount: number;
+  status: string;
+  offerId: string;
+  timestamp: string;
+  type: string;
+}
 
 export const Transactions = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -12,15 +23,21 @@ export const Transactions = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const itemsPerPage = 20;
 
-  // Load transactions from mockDataStore
+  // Load transactions from backend API
   useEffect(() => {
-    const loadTransactions = () => {
-      const allTransactions = mockDataStore.getAllTransactions();
-      // Sort by timestamp (most recent first)
-      const sorted = [...allTransactions].sort((a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      );
-      setTransactions(sorted);
+    const loadTransactions = async () => {
+      try {
+        const result = await apiClient.getAllTransactions();
+        if (result.success && result.data) {
+          // Sort by timestamp (most recent first)
+          const sorted = [...result.data].sort((a, b) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
+          setTransactions(sorted);
+        }
+      } catch (error) {
+        console.error('Failed to load transactions:', error);
+      }
     };
 
     loadTransactions();

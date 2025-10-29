@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { propertyChaincode } from '@/services/fabricClient';
+import { apiClient } from '@/services/apiClient';
 
 export const AddProperty = () => {
   const { toast } = useToast();
@@ -46,8 +46,8 @@ export const AddProperty = () => {
       // Generate property ID
       const propertyId = `PROP_${Date.now()}`;
 
-      // Register property on blockchain
-      await propertyChaincode.registerProperty({
+      // Register property via backend API (will create transaction automatically)
+      const result = await apiClient.registerProperty({
         propertyId,
         owner: currentUser.userId,
         ownerName: currentUser.name,
@@ -60,7 +60,7 @@ export const AddProperty = () => {
         longitude: 0,
       });
 
-      console.log('✅ Property registered successfully:', propertyId);
+      console.log('✅ Property registered via backend:', result);
 
       toast({
         title: 'Property Registered! 🎉',
