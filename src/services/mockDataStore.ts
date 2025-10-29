@@ -108,9 +108,12 @@ class MockDataStore {
 
   // User operations
   addUser(user: User) {
+    console.log('👤 [mockDataStore] addUser called:', user.userId, user.name);
     const data = this.getData();
+    console.log('📊 [mockDataStore] Current users before add:', data.users.length);
     data.users.push(user);
     this.saveData(data);
+    console.log('✅ [mockDataStore] User added. Total users:', data.users.length);
   }
 
   getUser(userId: string): User | null {
@@ -124,11 +127,15 @@ class MockDataStore {
 
   // Property operations
   addProperty(property: Property) {
+    console.log('🏠 [mockDataStore] addProperty called:', property.propertyId);
     const data = this.getData();
+    console.log('📊 [mockDataStore] Current properties before add:', data.properties.length);
     data.properties.push(property);
     this.saveData(data);
+    console.log('✅ [mockDataStore] Property added. Total properties:', data.properties.length);
 
     // Add transaction for property registration
+    console.log('📝 [mockDataStore] Creating PROPERTY_REGISTERED transaction...');
     this.addTransaction({
       transactionId: `TXN_${Date.now()}`,
       propertyId: property.propertyId,
@@ -170,11 +177,15 @@ class MockDataStore {
 
   // Offer operations
   addOffer(offer: Offer) {
+    console.log('💰 [mockDataStore] addOffer called:', offer.offerId);
     const data = this.getData();
+    console.log('📊 [mockDataStore] Current offers before add:', data.offers.length);
     data.offers.push(offer);
     this.saveData(data);
+    console.log('✅ [mockDataStore] Offer added. Total offers:', data.offers.length);
 
     // Add transaction for offer creation
+    console.log('📝 [mockDataStore] Creating OFFER_CREATED transaction...');
     this.addTransaction({
       transactionId: `TXN_${Date.now()}`,
       propertyId: offer.propertyId,
@@ -262,9 +273,13 @@ class MockDataStore {
 
   // Transaction operations
   addTransaction(transaction: Transaction) {
+    console.log('📝 [mockDataStore] addTransaction called:', transaction.type, transaction.transactionId);
     const data = this.getData();
+    console.log('📊 [mockDataStore] Current transactions before add:', data.transactions.length);
     data.transactions.push(transaction);
     this.saveData(data);
+    console.log('✅ [mockDataStore] Transaction added. Total transactions:', data.transactions.length);
+    console.log('💾 [mockDataStore] Saved to localStorage:', this.storageKey);
   }
 
   getTransaction(transactionId: string): Transaction | null {
