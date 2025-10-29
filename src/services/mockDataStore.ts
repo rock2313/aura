@@ -317,5 +317,9 @@ class MockDataStore {
   }
 }
 
-export const mockDataStore = new MockDataStore();
+// Export types
 export type { User, Property, Offer, Transaction, Escrow };
+
+// Create and export instance
+const mockDataStore = new MockDataStore();
+export { mockDataStore };
