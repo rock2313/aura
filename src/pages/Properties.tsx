@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MapPin, DollarSign, Home, Tag } from 'lucide-react';
+import { MapPin, DollarSign, Home, Tag, Store, Package } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { apiClient } from '@/services/apiClient';
 
@@ -21,46 +22,109 @@ interface Property {
   propertyType: string;
   description: string;
   registeredAt: string;
+  listedForSale?: boolean;
+  verifiedBy?: string;
+  verifiedAt?: string;
 }
 
 export const Properties = () => {
   const { toast } = useToast();
-  const [properties, setProperties] = useState<Property[]>([]);
+  const [marketplace, setMarketplace] = useState<Property[]>([]);
+  const [myProperties, setMyProperties] = useState<Property[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [offerAmount, setOfferAmount] = useState('');
   const [offerMessage, setOfferMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState('marketplace');
 
   useEffect(() => {
     // Load current user
     const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
     setCurrentUser(user);
 
-    // Load properties
-    loadProperties();
+    // Load data
+    loadMarketplace();
+    if (user.userId) {
+      loadMyProperties(user.userId);
+    }
 
-    // Refresh every 3 seconds
-    const interval = setInterval(loadProperties, 3000);
+    // Refresh every 5 seconds
+    const interval = setInterval(() => {
+      loadMarketplace();
+      if (user.userId) {
+        loadMyProperties(user.userId);
+      }
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  const loadProperties = async () => {
+  const loadMarketplace = async () => {
     try {
-      console.log('🔄 [Properties] Fetching properties from backend...');
-      const result = await apiClient.getAllProperties();
-      console.log('📦 [Properties] Backend response:', result);
-
+      const result = await apiClient.getMarketplace();
       if (result.success && result.data) {
-        console.log('✅ [Properties] Got properties:', result.data.length, 'items');
-        console.log('📋 [Properties] Properties data:', result.data);
-        setProperties(result.data);
-      } else {
-        console.warn('⚠️ [Properties] Invalid response format:', result);
+        setMarketplace(result.data);
       }
     } catch (error) {
-      console.error('❌ [Properties] Failed to load properties:', error);
+      console.error('Failed to load marketplace:', error);
+    }
+  };
+
+  const loadMyProperties = async (userId: string) => {
+    try {
+      const result = await apiClient.getUserProperties(userId);
+      if (result.success && result.data) {
+        setMyProperties(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to load my properties:', error);
+    }
+  };
+
+  const handleListForSale = async (propertyId: string) => {
+    setLoading(true);
+    try {
+      await apiClient.listPropertyForSale(propertyId);
+      toast({
+        title: 'Property Listed! 🎉',
+        description: 'Your property is now visible in the marketplace',
+      });
+      loadMarketplace();
+      if (currentUser?.userId) {
+        loadMyProperties(currentUser.userId);
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Failed to List Property',
+        description: error?.message || 'Property must be verified first',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnlist = async (propertyId: string) => {
+    setLoading(true);
+    try {
+      await apiClient.unlistProperty(propertyId);
+      toast({
+        title: 'Property Unlisted',
+        description: 'Your property has been removed from the marketplace',
+      });
+      loadMarketplace();
+      if (currentUser?.userId) {
+        loadMyProperties(currentUser.userId);
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Failed to Unlist',
+        description: error?.message || 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -68,16 +132,7 @@ export const Properties = () => {
     if (!currentUser?.userId) {
       toast({
         title: 'Login Required',
-        description: 'Please login to make an offer',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (property.owner === currentUser.userId) {
-      toast({
-        title: 'Cannot Make Offer',
-        description: 'You cannot make an offer on your own property',
+        description: 'Please register/login to make an offer',
         variant: 'destructive',
       });
       return;
@@ -117,11 +172,9 @@ export const Properties = () => {
         message: offerMessage,
       });
 
-      console.log('✅ Offer created via backend:', offerId);
-
       toast({
         title: 'Offer Submitted! 🎉',
-        description: 'Your offer has been submitted. The seller will review it. Transaction created.',
+        description: 'Your offer has been submitted. The seller will review it.',
         duration: 5000,
       });
 
@@ -130,7 +183,6 @@ export const Properties = () => {
       setOfferAmount('');
       setOfferMessage('');
     } catch (error: any) {
-      console.error('❌ Offer submission error:', error);
       toast({
         title: 'Failed to Submit Offer',
         description: error?.message || 'Please try again',
@@ -162,109 +214,189 @@ export const Properties = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Available Properties</h1>
-            <p className="text-muted-foreground">
-              {properties.length === 0
-                ? "No properties listed yet. Be the first to add a property!"
-                : `Browse ${properties.length} blockchain-registered propert${properties.length === 1 ? 'y' : 'ies'}`}
-            </p>
+  const PropertyCard = ({ property, isOwner = false }: { property: Property; isOwner?: boolean }) => (
+    <Card key={property.propertyId} className="hover:shadow-lg transition-shadow border-primary/20">
+      <CardHeader>
+        <div className="flex justify-between items-start mb-2">
+          <Badge className={getStatusColor(property.status)}>
+            {property.status}
+          </Badge>
+          <div className="flex gap-2">
+            <Badge variant="outline">{property.propertyType}</Badge>
+            {property.listedForSale && (
+              <Badge className="bg-blue-500">For Sale</Badge>
+            )}
+          </div>
+        </div>
+        <CardTitle className="text-lg">{property.location}</CardTitle>
+        <p className="text-xs text-muted-foreground font-mono">
+          ID: {property.propertyId.substring(0, 20)}...
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm">
+            <MapPin className="h-4 w-4 text-primary" />
+            <span>{property.location}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Tag className="h-4 w-4 text-primary" />
+            <span>{property.area} sq ft</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-green-600" />
+            <span className="text-lg font-bold">{formatCurrency(property.price)}</span>
           </div>
         </div>
 
-        {properties.length === 0 ? (
-          <Card className="border-primary/20">
-            <CardContent className="text-center py-12">
-              <Home className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Properties Available</h3>
-              <p className="text-muted-foreground mb-6">
-                Properties will appear here once they are registered on the blockchain.
-              </p>
-              <Button onClick={() => window.location.href = '/add-property'}>
-                Register Your Property
+        <div className="pt-2 border-t">
+          <div className="text-xs text-muted-foreground mb-2">
+            <p>Owner: {property.ownerName}</p>
+            <p>Registered: {new Date(property.registeredAt).toLocaleDateString()}</p>
+            {property.verifiedBy && (
+              <p className="text-green-600">✓ Verified by Admin</p>
+            )}
+          </div>
+          {property.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+              {property.description}
+            </p>
+          )}
+        </div>
+
+        {/* Actions for marketplace view */}
+        {!isOwner && (
+          <Button
+            className="w-full bg-gradient-to-r from-primary to-blue-600"
+            onClick={() => handleMakeOffer(property)}
+          >
+            Make an Offer
+          </Button>
+        )}
+
+        {/* Actions for owner's properties */}
+        {isOwner && (
+          <div className="space-y-2">
+            {property.status === 'PENDING' && (
+              <div className="text-center text-sm text-yellow-600 py-2 bg-yellow-50 rounded">
+                ⏳ Awaiting Admin Verification
+              </div>
+            )}
+            {property.status === 'VERIFIED' && !property.listedForSale && (
+              <Button
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-600"
+                onClick={() => handleListForSale(property.propertyId)}
+                disabled={loading}
+              >
+                List for Sale in Marketplace
               </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {properties.map((property) => (
-              <Card key={property.propertyId} className="hover:shadow-lg transition-shadow border-primary/20">
-                <CardHeader>
-                  <div className="flex justify-between items-start mb-2">
-                    <Badge className={getStatusColor(property.status)}>
-                      {property.status}
-                    </Badge>
-                    <Badge variant="outline">{property.propertyType}</Badge>
-                  </div>
-                  <CardTitle className="text-lg">{property.location}</CardTitle>
-                  <p className="text-xs text-muted-foreground font-mono">
-                    ID: {property.propertyId.substring(0, 20)}...
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-primary" />
-                      <span>{property.location}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Tag className="h-4 w-4 text-primary" />
-                      <span>{property.area} sq ft</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-green-600" />
-                      <span className="text-lg font-bold">{formatCurrency(property.price)}</span>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t">
-                    <div className="text-xs text-muted-foreground mb-2">
-                      <p>Owner: {property.ownerName}</p>
-                      <p>Registered: {new Date(property.registeredAt).toLocaleDateString()}</p>
-                    </div>
-                    {property.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                        {property.description}
-                      </p>
-                    )}
-                  </div>
-
-                  {currentUser?.userId && currentUser.userId !== property.owner && (
-                    <Button
-                      className="w-full bg-gradient-to-r from-primary to-blue-600"
-                      onClick={() => handleMakeOffer(property)}
-                    >
-                      Make an Offer
-                    </Button>
-                  )}
-
-                  {currentUser?.userId === property.owner && (
-                    <div className="text-center text-sm text-muted-foreground py-2 bg-muted rounded">
-                      Your Property
-                    </div>
-                  )}
-
-                  {!currentUser?.userId && (
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => toast({
-                        title: 'Login Required',
-                        description: 'Please login to make an offer',
-                      })}
-                    >
-                      Login to Make Offer
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+            )}
+            {property.listedForSale && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => handleUnlist(property.propertyId)}
+                disabled={loading}
+              >
+                Remove from Marketplace
+              </Button>
+            )}
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Property Registry</h1>
+          <p className="text-muted-foreground">
+            Browse marketplace listings or manage your properties
+          </p>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="marketplace" className="flex items-center gap-2">
+              <Store className="h-4 w-4" />
+              Marketplace ({marketplace.length})
+            </TabsTrigger>
+            <TabsTrigger value="my-properties" className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              My Properties ({myProperties.length})
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Marketplace Tab */}
+          <TabsContent value="marketplace" className="mt-6">
+            {marketplace.length === 0 ? (
+              <Card className="border-primary/20">
+                <CardContent className="text-center py-12">
+                  <Store className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Properties in Marketplace</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Properties will appear here once owners list them for sale.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {marketplace.map((property) => (
+                  <PropertyCard key={property.propertyId} property={property} isOwner={false} />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* My Properties Tab */}
+          <TabsContent value="my-properties" className="mt-6">
+            {!currentUser?.userId ? (
+              <Card className="border-primary/20">
+                <CardContent className="text-center py-12">
+                  <Home className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Login Required</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Please login to view and manage your properties.
+                  </p>
+                  <Button onClick={() => window.location.href = '/'}>
+                    Go to Registration
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : myProperties.length === 0 ? (
+              <Card className="border-primary/20">
+                <CardContent className="text-center py-12">
+                  <Home className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Properties Yet</h3>
+                  <p className="text-muted-foreground mb-6">
+                    You haven't registered any properties. Start by adding your first property.
+                  </p>
+                  <Button onClick={() => window.location.href = '/add-property'}>
+                    Register Your Property
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div>
+                <div className="mb-4 flex justify-between items-center">
+                  <p className="text-sm text-muted-foreground">
+                    Managing {myProperties.length} propert{myProperties.length === 1 ? 'y' : 'ies'}
+                  </p>
+                  <Button onClick={() => window.location.href = '/add-property'} variant="outline">
+                    + Add New Property
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {myProperties.map((property) => (
+                    <PropertyCard key={property.propertyId} property={property} isOwner={true} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
 
         {/* Make Offer Modal */}
         <Dialog open={showOfferModal} onOpenChange={setShowOfferModal}>

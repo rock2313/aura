@@ -86,6 +86,33 @@ class ApiClient {
     return this.request('/properties');
   }
 
+  async getUserProperties(userId: string) {
+    return this.request(`/properties/user/${userId}`);
+  }
+
+  async getMarketplace() {
+    return this.request('/properties/marketplace/all');
+  }
+
+  async listPropertyForSale(propertyId: string) {
+    return this.request(`/properties/${propertyId}/list-for-sale`, {
+      method: 'PUT',
+    });
+  }
+
+  async unlistProperty(propertyId: string) {
+    return this.request(`/properties/${propertyId}/unlist`, {
+      method: 'PUT',
+    });
+  }
+
+  async verifyProperty(propertyId: string, adminId: string) {
+    return this.request(`/properties/${propertyId}/verify`, {
+      method: 'PUT',
+      body: JSON.stringify({ adminId }),
+    });
+  }
+
   // Offer APIs
   async createOffer(offerData: {
     offerId: string;

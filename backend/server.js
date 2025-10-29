@@ -56,6 +56,174 @@ setInterval(saveData, 10000);
 // In-memory data store (now persisted to file)
 const store = loadData();
 
+// Initialize demo users if empty
+function initDemoUsers() {
+  if (store.users.length === 0) {
+    console.log('📝 Initializing demo users...');
+
+    const demoUsers = [
+      {
+        userId: 'ADMIN_001',
+        name: 'Admin Officer',
+        email: 'admin@landregistry.gov',
+        phone: '1234567890',
+        aadhar: '1111-1111-1111',
+        pan: 'ADMIN1111A',
+        address: 'Land Registry Office, Government Building',
+        role: 'ADMIN',
+        walletAddress: '0xAdmin000...',
+        passwordHash: btoa('admin123'),
+        isVerified: true,
+        documents: [],
+        registeredAt: new Date().toISOString()
+      },
+      {
+        userId: 'USER_SELLER_001',
+        name: 'Ramesh Kumar',
+        email: 'ramesh@example.com',
+        phone: '9876543210',
+        aadhar: '2222-2222-2222',
+        pan: 'RAMSH2222B',
+        address: 'Plot 123, Jubilee Hills, Hyderabad',
+        role: 'USER',
+        walletAddress: '0xSeller001...',
+        passwordHash: btoa('seller123'),
+        isVerified: true,
+        documents: [],
+        registeredAt: new Date().toISOString()
+      },
+      {
+        userId: 'USER_BUYER_001',
+        name: 'Priya Sharma',
+        email: 'priya@example.com',
+        phone: '9876543211',
+        aadhar: '3333-3333-3333',
+        pan: 'PRIYA3333C',
+        address: 'Flat 45, Banjara Hills, Hyderabad',
+        role: 'USER',
+        walletAddress: '0xBuyer001...',
+        passwordHash: btoa('buyer123'),
+        isVerified: true,
+        documents: [],
+        registeredAt: new Date().toISOString()
+      }
+    ];
+
+    store.users.push(...demoUsers);
+    console.log(`✅ Created ${demoUsers.length} demo users`);
+    saveData();
+  }
+}
+
+// Initialize demo properties for demo users
+function initDemoProperties() {
+  const sellerUser = store.users.find(u => u.userId === 'USER_SELLER_001');
+  if (sellerUser && store.properties.length <= 1) {
+    console.log('🏠 Initializing demo properties...');
+
+    const demoProperties = [
+      {
+        propertyId: 'PROP_DEMO_001',
+        owner: 'USER_SELLER_001',
+        ownerName: 'Ramesh Kumar',
+        location: 'Plot 45, Jubilee Hills, Hyderabad, Telangana',
+        area: 2000,
+        price: 15000000,
+        propertyType: 'Residential',
+        description: 'Beautiful 2000 sq ft residential plot in prime location',
+        latitude: 17.4239,
+        longitude: 78.4738,
+        status: 'VERIFIED',
+        listedForSale: true,
+        documents: [],
+        verifiedBy: 'ADMIN_001',
+        verifiedAt: new Date().toISOString(),
+        registeredAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+        lastUpdated: new Date().toISOString(),
+        views: 15
+      },
+      {
+        propertyId: 'PROP_DEMO_002',
+        owner: 'USER_SELLER_001',
+        ownerName: 'Ramesh Kumar',
+        location: 'Survey No 123, Gachibowli, Hyderabad, Telangana',
+        area: 3000,
+        price: 25000000,
+        propertyType: 'Commercial',
+        description: 'Commercial plot near IT hub, excellent investment',
+        latitude: 17.4400,
+        longitude: 78.3489,
+        status: 'VERIFIED',
+        listedForSale: false,
+        documents: [],
+        verifiedBy: 'ADMIN_001',
+        verifiedAt: new Date().toISOString(),
+        registeredAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        lastUpdated: new Date().toISOString(),
+        views: 8
+      },
+      {
+        propertyId: 'PROP_DEMO_003',
+        owner: 'USER_SELLER_001',
+        ownerName: 'Ramesh Kumar',
+        location: 'House 789, Madhapur, Hyderabad, Telangana',
+        area: 1500,
+        price: 8500000,
+        propertyType: 'Residential',
+        description: 'Ready to move 3BHK house with modern amenities',
+        latitude: 17.4483,
+        longitude: 78.3915,
+        status: 'PENDING',
+        listedForSale: false,
+        documents: [],
+        verifiedBy: '',
+        verifiedAt: '',
+        registeredAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        lastUpdated: new Date().toISOString(),
+        views: 3
+      }
+    ];
+
+    store.properties = store.properties.filter(p => !p.propertyId.startsWith('PROP_DEMO'));
+    store.properties.push(...demoProperties);
+
+    // Create transactions for demo properties
+    demoProperties.forEach(prop => {
+      createTransaction('PROPERTY_REGISTERED', {
+        propertyId: prop.propertyId,
+        toOwner: prop.owner,
+        amount: prop.price,
+        status: 'COMPLETED'
+      });
+
+      if (prop.status === 'VERIFIED') {
+        createTransaction('PROPERTY_VERIFIED', {
+          propertyId: prop.propertyId,
+          toOwner: prop.owner,
+          amount: prop.price,
+          status: 'COMPLETED'
+        });
+      }
+
+      if (prop.listedForSale) {
+        createTransaction('PROPERTY_LISTED', {
+          propertyId: prop.propertyId,
+          toOwner: prop.owner,
+          amount: prop.price,
+          status: 'COMPLETED'
+        });
+      }
+    });
+
+    console.log(`✅ Created ${demoProperties.length} demo properties`);
+    saveData();
+  }
+}
+
+// Call initialization functions
+initDemoUsers();
+initDemoProperties();
+
 // Helper to create transactions
 function createTransaction(type, data) {
   const transaction = {
@@ -146,6 +314,7 @@ app.post('/api/properties/register', (req, res) => {
     const propertyData = {
       ...req.body,
       status: 'PENDING',
+      listedForSale: false,
       documents: [],
       verifiedBy: '',
       verifiedAt: '',
@@ -174,9 +343,103 @@ app.get('/api/properties', (req, res) => {
   res.json({ success: true, data: store.properties });
 });
 
+// Get properties owned by a specific user
+app.get('/api/properties/user/:userId', (req, res) => {
+  const userProperties = store.properties.filter(p => p.owner === req.params.userId);
+  res.json({ success: true, data: userProperties });
+});
+
+// Get marketplace listings (properties for sale)
+app.get('/api/properties/marketplace/all', (req, res) => {
+  const marketplace = store.properties.filter(p =>
+    p.status === 'VERIFIED' && p.listedForSale === true
+  );
+  res.json({ success: true, data: marketplace });
+});
+
 app.get('/api/properties/:propertyId', (req, res) => {
   const property = store.properties.find(p => p.propertyId === req.params.propertyId);
   res.json({ success: true, data: property });
+});
+
+// List property for sale
+app.put('/api/properties/:propertyId/list-for-sale', (req, res) => {
+  try {
+    const property = store.properties.find(p => p.propertyId === req.params.propertyId);
+    if (property) {
+      if (property.status !== 'VERIFIED') {
+        return res.status(400).json({
+          error: 'Property must be verified before listing for sale'
+        });
+      }
+      property.listedForSale = true;
+      property.lastUpdated = new Date().toISOString();
+
+      createTransaction('PROPERTY_LISTED', {
+        propertyId: property.propertyId,
+        toOwner: property.owner,
+        amount: property.price,
+        status: 'COMPLETED'
+      });
+
+      res.json({ success: true, data: property });
+    } else {
+      res.status(404).json({ error: 'Property not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Unlist property from sale
+app.put('/api/properties/:propertyId/unlist', (req, res) => {
+  try {
+    const property = store.properties.find(p => p.propertyId === req.params.propertyId);
+    if (property) {
+      property.listedForSale = false;
+      property.lastUpdated = new Date().toISOString();
+
+      createTransaction('PROPERTY_UNLISTED', {
+        propertyId: property.propertyId,
+        toOwner: property.owner,
+        amount: property.price,
+        status: 'COMPLETED'
+      });
+
+      res.json({ success: true, data: property });
+    } else {
+      res.status(404).json({ error: 'Property not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin verifies property
+app.put('/api/properties/:propertyId/verify', (req, res) => {
+  try {
+    const { adminId } = req.body;
+    const property = store.properties.find(p => p.propertyId === req.params.propertyId);
+    if (property) {
+      property.status = 'VERIFIED';
+      property.verifiedBy = adminId;
+      property.verifiedAt = new Date().toISOString();
+      property.lastUpdated = new Date().toISOString();
+
+      createTransaction('PROPERTY_VERIFIED', {
+        propertyId: property.propertyId,
+        toOwner: property.owner,
+        amount: property.price,
+        status: 'COMPLETED'
+      });
+
+      res.json({ success: true, data: property });
+    } else {
+      res.status(404).json({ error: 'Property not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Offer APIs
