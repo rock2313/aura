@@ -107,6 +107,10 @@ export const userChaincode = {
     walletAddress: string;
     passwordHash: string;
   }) {
+    console.log('🚀 [userChaincode] registerUser called!', userData.userId);
+    console.log('👤 [userChaincode] Name:', userData.name);
+    console.log('📧 [userChaincode] Email:', userData.email);
+
     const result = await fabricClient.invokeChaincode('user-contract', 'RegisterUser', [
       userData.userId,
       userData.name,
@@ -215,6 +219,10 @@ export const propertyChaincode = {
     latitude: number;
     longitude: number;
   }) {
+    console.log('🚀 [propertyChaincode] registerProperty called!', propertyData.propertyId);
+    console.log('📍 [propertyChaincode] Location:', propertyData.location);
+    console.log('💰 [propertyChaincode] Price:', propertyData.price);
+
     const result = await fabricClient.invokeChaincode('property-contract', 'RegisterProperty', [
       propertyData.propertyId,
       propertyData.owner,
