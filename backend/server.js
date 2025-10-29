@@ -1,10 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const { Gateway, Wallets } = require('fabric-network');
-const FabricCAServices = require('fabric-ca-client');
-const path = require('path');
-const fs = require('fs');
 
 const app = express();
 const PORT = 3001;
@@ -13,9 +9,8 @@ const PORT = 3001;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Store for mock data (fallback when Fabric is not running)
-let mockMode = false;
-const mockData = {
+// In-memory data store (syncs with frontend mockDataStore)
+const store = {
   users: [],
   properties: [],
   offers: [],
@@ -23,105 +18,22 @@ const mockData = {
   escrows: []
 };
 
-// Fabric connection configuration
-const ccpPath = path.resolve(__dirname, '..', 'network', 'connection-org1.json');
-const walletPath = path.resolve(__dirname, 'wallet');
-
-let gateway;
-let contract;
-
-// Initialize Fabric connection
-async function initFabric() {
-  try {
-    console.log('🔗 Connecting to Hyperledger Fabric network...');
-
-    // Check if connection profile exists
-    if (!fs.existsSync(ccpPath)) {
-      console.warn('⚠️  Connection profile not found. Running in MOCK MODE.');
-      mockMode = true;
-      return;
-    }
-
-    const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
-
-    // Create wallet
-    const wallet = await Wallets.newFileSystemWallet(walletPath);
-
-    // Check if admin identity exists
-    const identity = await wallet.get('admin');
-    if (!identity) {
-      console.warn('⚠️  Admin identity not found. Running in MOCK MODE.');
-      mockMode = true;
-      return;
-    }
-
-    // Connect to gateway
-    gateway = new Gateway();
-    await gateway.connect(ccp, {
-      wallet,
-      identity: 'admin',
-      discovery: { enabled: true, asLocalhost: true }
-    });
-
-    // Get network and contract
-    const network = await gateway.getNetwork('landregistry');
-    contract = network.getContract('property-contract');
-
-    console.log('✅ Connected to Fabric network successfully!');
-    mockMode = false;
-  } catch (error) {
-    console.error('❌ Failed to connect to Fabric:', error.message);
-    console.log('⚠️  Running in MOCK MODE');
-    mockMode = true;
-  }
-}
-
-// Helper function to execute chaincode
-async function executeChaincode(contractName, functionName, ...args) {
-  if (mockMode) {
-    console.log(`[MOCK] ${contractName}.${functionName}(${args.join(', ')})`);
-    return { success: true, message: 'Mock transaction successful', data: args };
-  }
-
-  try {
-    const result = await contract.submitTransaction(functionName, ...args);
-    return { success: true, data: JSON.parse(result.toString()) };
-  } catch (error) {
-    console.error(`Error executing ${functionName}:`, error);
-    throw error;
-  }
-}
-
-// Helper to add to mock storage and track transactions
-function addToMockStorage(type, data) {
-  mockData[type].push(data);
-
-  // Auto-create transaction
-  if (type === 'properties') {
-    mockData.transactions.push({
-      transactionId: `TXN_${Date.now()}`,
-      propertyId: data.propertyId,
-      fromOwner: '',
-      toOwner: data.owner,
-      amount: data.price,
-      status: 'COMPLETED',
-      offerId: '',
-      timestamp: new Date().toISOString(),
-      type: 'PROPERTY_REGISTERED'
-    });
-  } else if (type === 'offers') {
-    mockData.transactions.push({
-      transactionId: `TXN_${Date.now()}`,
-      propertyId: data.propertyId,
-      fromOwner: data.buyerId,
-      toOwner: data.sellerId,
-      amount: data.offerAmount,
-      status: 'PENDING',
-      offerId: data.offerId,
-      timestamp: new Date().toISOString(),
-      type: 'OFFER_CREATED'
-    });
-  }
+// Helper to create transactions
+function createTransaction(type, data) {
+  const transaction = {
+    transactionId: `TXN_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    propertyId: data.propertyId || '',
+    fromOwner: data.fromOwner || '',
+    toOwner: data.toOwner || '',
+    amount: data.amount || 0,
+    status: data.status || 'COMPLETED',
+    offerId: data.offerId || '',
+    timestamp: new Date().toISOString(),
+    type: type
+  };
+  store.transactions.push(transaction);
+  console.log('📝 Transaction created:', type, transaction.transactionId);
+  return transaction;
 }
 
 // ============= API ROUTES =============
@@ -130,187 +42,222 @@ function addToMockStorage(type, data) {
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
-    mode: mockMode ? 'MOCK' : 'FABRIC',
-    timestamp: new Date().toISOString()
+    mode: 'MOCK',
+    timestamp: new Date().toISOString(),
+    stats: {
+      users: store.users.length,
+      properties: store.properties.length,
+      offers: store.offers.length,
+      transactions: store.transactions.length
+    }
   });
 });
 
-// User APIs
-app.post('/api/users/register', async (req, res) => {
+// Sync data (accept data from frontend)
+app.post('/api/sync', (req, res) => {
   try {
-    console.log('📝 Register user:', req.body.name);
-    const userData = req.body;
-
-    if (mockMode) {
-      mockData.users.push(userData);
-      res.json({ success: true, userId: userData.userId });
-    } else {
-      await executeChaincode(
-        'user-contract',
-        'RegisterUser',
-        userData.userId,
-        userData.name,
-        userData.email,
-        userData.phone,
-        userData.aadhar,
-        userData.pan,
-        userData.address,
-        userData.role,
-        userData.walletAddress,
-        userData.passwordHash
-      );
-      res.json({ success: true, userId: userData.userId });
-    }
+    const { users, properties, offers, transactions, escrows } = req.body;
+    if (users) store.users = users;
+    if (properties) store.properties = properties;
+    if (offers) store.offers = offers;
+    if (transactions) store.transactions = transactions;
+    if (escrows) store.escrows = escrows;
+    console.log('🔄 Data synced from frontend');
+    res.json({ success: true });
   } catch (error) {
-    console.error('Error registering user:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/users/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
+// Get all data
+app.get('/api/data', (req, res) => {
+  res.json({ success: true, data: store });
+});
 
-    if (mockMode) {
-      const user = mockData.users.find(u => u.userId === userId);
-      res.json({ success: true, data: user });
-    } else {
-      const result = await contract.evaluateTransaction('GetUser', userId);
-      res.json({ success: true, data: JSON.parse(result.toString()) });
-    }
+// User APIs
+app.post('/api/users/register', (req, res) => {
+  try {
+    console.log('👤 Register user:', req.body.name);
+    const userData = {
+      ...req.body,
+      registeredAt: new Date().toISOString()
+    };
+    store.users.push(userData);
+    res.json({ success: true, userId: userData.userId, data: userData });
   } catch (error) {
+    console.error('Error:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+app.get('/api/users', (req, res) => {
+  res.json({ success: true, data: store.users });
+});
+
+app.get('/api/users/:userId', (req, res) => {
+  const user = store.users.find(u => u.userId === req.params.userId);
+  res.json({ success: true, data: user });
 });
 
 // Property APIs
-app.post('/api/properties/register', async (req, res) => {
+app.post('/api/properties/register', (req, res) => {
   try {
     console.log('🏠 Register property:', req.body.location);
-    const propertyData = req.body;
+    const propertyData = {
+      ...req.body,
+      status: 'PENDING',
+      documents: [],
+      verifiedBy: '',
+      verifiedAt: '',
+      registeredAt: new Date().toISOString(),
+      lastUpdated: new Date().toISOString(),
+      views: 0
+    };
+    store.properties.push(propertyData);
 
-    if (mockMode) {
-      addToMockStorage('properties', propertyData);
-      res.json({ success: true, propertyId: propertyData.propertyId });
-    } else {
-      await executeChaincode(
-        'property-contract',
-        'RegisterProperty',
-        propertyData.propertyId,
-        propertyData.owner,
-        propertyData.ownerName,
-        propertyData.location,
-        propertyData.area.toString(),
-        propertyData.price.toString(),
-        propertyData.propertyType,
-        propertyData.description,
-        propertyData.latitude.toString(),
-        propertyData.longitude.toString()
-      );
-      res.json({ success: true, propertyId: propertyData.propertyId });
-    }
+    // Create transaction
+    createTransaction('PROPERTY_REGISTERED', {
+      propertyId: propertyData.propertyId,
+      toOwner: propertyData.owner,
+      amount: propertyData.price,
+      status: 'COMPLETED'
+    });
+
+    res.json({ success: true, propertyId: propertyData.propertyId, data: propertyData });
   } catch (error) {
-    console.error('Error registering property:', error);
+    console.error('Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/properties', async (req, res) => {
-  try {
-    if (mockMode) {
-      res.json({ success: true, data: mockData.properties });
-    } else {
-      const result = await contract.evaluateTransaction('GetAllProperties');
-      res.json({ success: true, data: JSON.parse(result.toString()) });
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+app.get('/api/properties', (req, res) => {
+  res.json({ success: true, data: store.properties });
 });
 
-app.get('/api/properties/:propertyId', async (req, res) => {
-  try {
-    const { propertyId } = req.params;
-
-    if (mockMode) {
-      const property = mockData.properties.find(p => p.propertyId === propertyId);
-      res.json({ success: true, data: property });
-    } else {
-      const result = await contract.evaluateTransaction('GetProperty', propertyId);
-      res.json({ success: true, data: JSON.parse(result.toString()) });
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+app.get('/api/properties/:propertyId', (req, res) => {
+  const property = store.properties.find(p => p.propertyId === req.params.propertyId);
+  res.json({ success: true, data: property });
 });
 
 // Offer APIs
-app.post('/api/offers/create', async (req, res) => {
+app.post('/api/offers/create', (req, res) => {
   try {
     console.log('💰 Create offer:', req.body.offerId);
-    const offerData = req.body;
+    const offerData = {
+      ...req.body,
+      status: 'PENDING',
+      adminVerified: false,
+      adminId: '',
+      verifiedAt: '',
+      sepoliaTxHash: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    store.offers.push(offerData);
 
-    if (mockMode) {
-      addToMockStorage('offers', offerData);
-      res.json({ success: true, offerId: offerData.offerId });
-    } else {
-      await executeChaincode(
-        'offer-contract',
-        'CreateOffer',
-        offerData.offerId,
-        offerData.propertyId,
-        offerData.buyerId,
-        offerData.buyerName,
-        offerData.sellerId,
-        offerData.sellerName,
-        offerData.offerAmount.toString(),
-        offerData.message
-      );
-      res.json({ success: true, offerId: offerData.offerId });
-    }
+    // Create transaction
+    createTransaction('OFFER_CREATED', {
+      propertyId: offerData.propertyId,
+      fromOwner: offerData.buyerId,
+      toOwner: offerData.sellerId,
+      amount: offerData.offerAmount,
+      status: 'PENDING',
+      offerId: offerData.offerId
+    });
+
+    res.json({ success: true, offerId: offerData.offerId, data: offerData });
   } catch (error) {
-    console.error('Error creating offer:', error);
+    console.error('Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/offers', async (req, res) => {
+app.get('/api/offers', (req, res) => {
+  res.json({ success: true, data: store.offers });
+});
+
+app.get('/api/offers/:offerId', (req, res) => {
+  const offer = store.offers.find(o => o.offerId === req.params.offerId);
+  res.json({ success: true, data: offer });
+});
+
+app.put('/api/offers/:offerId/accept', (req, res) => {
   try {
-    if (mockMode) {
-      res.json({ success: true, data: mockData.offers });
+    const offer = store.offers.find(o => o.offerId === req.params.offerId);
+    if (offer) {
+      offer.status = 'ACCEPTED';
+      offer.updatedAt = new Date().toISOString();
+
+      // Create transaction
+      createTransaction('OFFER_ACCEPTED', {
+        propertyId: offer.propertyId,
+        fromOwner: offer.sellerId,
+        toOwner: offer.buyerId,
+        amount: offer.offerAmount,
+        status: 'PENDING',
+        offerId: offer.offerId
+      });
+
+      res.json({ success: true, data: offer });
     } else {
-      const result = await contract.evaluateTransaction('GetAllOffers');
-      res.json({ success: true, data: JSON.parse(result.toString()) });
+      res.status(404).json({ error: 'Offer not found' });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.put('/api/offers/:offerId/accept', async (req, res) => {
+app.put('/api/offers/:offerId/reject', (req, res) => {
   try {
-    const { offerId } = req.params;
+    const offer = store.offers.find(o => o.offerId === req.params.offerId);
+    if (offer) {
+      offer.status = 'REJECTED';
+      offer.updatedAt = new Date().toISOString();
 
-    if (mockMode) {
-      const offer = mockData.offers.find(o => o.offerId === offerId);
-      if (offer) {
-        offer.status = 'ACCEPTED';
-        mockData.transactions.push({
-          transactionId: `TXN_${Date.now()}`,
-          propertyId: offer.propertyId,
-          fromOwner: offer.sellerId,
-          toOwner: offer.buyerId,
-          amount: offer.offerAmount,
-          status: 'PENDING',
-          offerId: offer.offerId,
-          timestamp: new Date().toISOString(),
-          type: 'OFFER_ACCEPTED'
-        });
-      }
-      res.json({ success: true });
+      // Create transaction
+      createTransaction('OFFER_REJECTED', {
+        propertyId: offer.propertyId,
+        fromOwner: offer.sellerId,
+        toOwner: offer.buyerId,
+        amount: offer.offerAmount,
+        status: 'CANCELLED',
+        offerId: offer.offerId
+      });
+
+      res.json({ success: true, data: offer });
     } else {
-      await executeChaincode('offer-contract', 'AcceptOffer', offerId);
-      res.json({ success: true });
+      res.status(404).json({ error: 'Offer not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/offers/:offerId/verify', (req, res) => {
+  try {
+    const { adminId, sepoliaTxHash } = req.body;
+    const offer = store.offers.find(o => o.offerId === req.params.offerId);
+    if (offer) {
+      offer.status = 'ADMIN_VERIFIED';
+      offer.adminVerified = true;
+      offer.adminId = adminId;
+      offer.verifiedAt = new Date().toISOString();
+      offer.sepoliaTxHash = sepoliaTxHash;
+      offer.updatedAt = new Date().toISOString();
+
+      // Create transaction
+      createTransaction('OFFER_VERIFIED', {
+        propertyId: offer.propertyId,
+        fromOwner: offer.sellerId,
+        toOwner: offer.buyerId,
+        amount: offer.offerAmount,
+        status: 'VERIFIED',
+        offerId: offer.offerId
+      });
+
+      res.json({ success: true, data: offer });
+    } else {
+      res.status(404).json({ error: 'Offer not found' });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -318,32 +265,42 @@ app.put('/api/offers/:offerId/accept', async (req, res) => {
 });
 
 // Transaction APIs
-app.get('/api/transactions', async (req, res) => {
-  try {
-    if (mockMode) {
-      res.json({ success: true, data: mockData.transactions });
-    } else {
-      const result = await contract.evaluateTransaction('GetAllTransactions');
-      res.json({ success: true, data: JSON.parse(result.toString()) });
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+app.get('/api/transactions', (req, res) => {
+  res.json({ success: true, data: store.transactions });
+});
+
+app.get('/api/transactions/:transactionId', (req, res) => {
+  const tx = store.transactions.find(t => t.transactionId === req.params.transactionId);
+  res.json({ success: true, data: tx });
 });
 
 // Start server
-app.listen(PORT, async () => {
-  console.log(`🚀 Backend server running on http://localhost:${PORT}`);
-  await initFabric();
-  console.log('✅ Server ready to handle requests');
-  console.log(`Mode: ${mockMode ? '⚠️  MOCK (no Fabric)' : '✅ FABRIC CONNECTED'}`);
+app.listen(PORT, () => {
+  console.log('='.repeat(60));
+  console.log('🚀 LandChain Backend Server Started');
+  console.log('='.repeat(60));
+  console.log(`📍 URL: http://localhost:${PORT}`);
+  console.log(`📊 Mode: MOCK (In-Memory Storage)`);
+  console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
+  console.log('='.repeat(60));
+  console.log('\n✅ Server ready to handle requests\n');
+  console.log('Available endpoints:');
+  console.log('  GET    /api/health');
+  console.log('  POST   /api/users/register');
+  console.log('  GET    /api/users');
+  console.log('  POST   /api/properties/register');
+  console.log('  GET    /api/properties');
+  console.log('  POST   /api/offers/create');
+  console.log('  GET    /api/offers');
+  console.log('  PUT    /api/offers/:id/accept');
+  console.log('  PUT    /api/offers/:id/reject');
+  console.log('  PUT    /api/offers/:id/verify');
+  console.log('  GET    /api/transactions');
+  console.log('\n');
 });
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\n🛑 Shutting down gracefully...');
-  if (gateway) {
-    await gateway.disconnect();
-  }
+process.on('SIGINT', () => {
+  console.log('\n🛑 Server shutting down...');
   process.exit(0);
 });
