@@ -12,9 +12,11 @@ import {
 } from '@/components/ui/select';
 import { Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { propertyChaincode } from '@/services/fabricClient';
 
 export const AddProperty = () => {
   const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     type: '',
@@ -24,12 +26,67 @@ export const AddProperty = () => {
     description: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: 'Property Submitted',
-      description: 'Your property has been submitted for verification.',
-    });
+    setLoading(true);
+
+    try {
+      // Get current user from localStorage
+      const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      if (!currentUser.userId) {
+        toast({
+          title: 'Error',
+          description: 'Please login first',
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Generate property ID
+      const propertyId = `PROP_${Date.now()}`;
+
+      // Register property on blockchain
+      await propertyChaincode.registerProperty({
+        propertyId,
+        owner: currentUser.userId,
+        ownerName: currentUser.name,
+        location: formData.location,
+        area: parseFloat(formData.area),
+        price: parseFloat(formData.price),
+        propertyType: formData.type,
+        description: formData.description,
+        latitude: 0, // You can add map integration later
+        longitude: 0,
+      });
+
+      console.log('✅ Property registered successfully:', propertyId);
+
+      toast({
+        title: 'Property Registered! 🎉',
+        description: 'Your property has been registered on the blockchain. Transaction created.',
+        duration: 5000,
+      });
+
+      // Reset form
+      setFormData({
+        title: '',
+        type: '',
+        location: '',
+        area: '',
+        price: '',
+        description: '',
+      });
+    } catch (error: any) {
+      console.error('❌ Property registration error:', error);
+      toast({
+        title: 'Registration Failed',
+        description: error?.message || 'Failed to register property',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -137,11 +194,9 @@ export const AddProperty = () => {
               type="submit"
               className="flex-1 bg-gradient-to-r from-primary to-[hsl(221,83%,53%)] hover:opacity-90"
               size="lg"
+              disabled={loading}
             >
-              Submit for Verification
-            </Button>
-            <Button type="button" variant="outline" size="lg">
-              Save as Draft
+              {loading ? 'Registering on Blockchain...' : 'Register Property on Blockchain'}
             </Button>
           </div>
         </form>

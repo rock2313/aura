@@ -1,170 +1,308 @@
-import { useState } from 'react';
-import { MapPin, DollarSign, Home } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { MapPin, DollarSign, Home, Tag } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { PropertyDetailsModal } from '@/components/PropertyDetailsModal';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-
-const mockProperties = [
-  {
-    id: 'PR1001',
-    title: 'Luxury Villa',
-    location: 'Whitefield, Bangalore',
-    area: '2500 sq ft',
-    areaValue: '5 acres',
-    price: '₹1.2 Cr',
-    status: 'Verified',
-    type: 'Residential',
-    state: 'Karnataka',
-    mandal: 'Bangalore East',
-    village: 'Whitefield',
-    surveyNo: 'SV-2024-001',
-    lastSale: 'Jan 15, 2024',
-    propertyIds: [
-      'PROP-KA-BLR-2024-001-A',
-      'PROP-KA-BLR-2024-001-B',
-      'PROP-KA-BLR-2024-001-C',
-      'PROP-KA-BLR-2024-001-D',
-    ],
-    currentBid: '₹1.25 Cr',
-    transactions: [
-      { from: 'Rajesh Kumar', to: 'Priya Sharma', amount: '₹95 Lakhs' },
-      { from: 'Amit Patel', to: 'Rajesh Kumar', amount: '₹80 Lakhs' },
-    ],
-  },
-  {
-    id: 'PR1002',
-    title: 'Commercial Space',
-    location: 'MG Road, Bangalore',
-    area: '1800 sq ft',
-    areaValue: '3 acres',
-    price: '₹80 Lakhs',
-    status: 'Pending',
-    type: 'Commercial',
-    state: 'Karnataka',
-    mandal: 'Bangalore Central',
-    village: 'MG Road',
-    surveyNo: 'SV-2024-002',
-    lastSale: 'Dec 20, 2023',
-    propertyIds: [
-      'PROP-KA-BLR-2024-002-A',
-      'PROP-KA-BLR-2024-002-B',
-    ],
-    currentBid: '₹85 Lakhs',
-    transactions: [
-      { from: 'Tech Solutions Ltd', to: 'Global Corp', amount: '₹70 Lakhs' },
-    ],
-  },
-  {
-    id: 'PR1003',
-    title: 'Farm Land',
-    location: 'Devanahalli, Bangalore',
-    area: '5 Acres',
-    areaValue: '5 acres',
-    price: '₹50 Lakhs',
-    status: 'Verified',
-    type: 'Agricultural',
-    state: 'Karnataka',
-    mandal: 'Devanahalli',
-    village: 'Sadahalli',
-    surveyNo: 'SV-2024-003',
-    lastSale: 'Nov 5, 2023',
-    propertyIds: [
-      'PROP-KA-DVH-2024-003-A',
-      'PROP-KA-DVH-2024-003-B',
-      'PROP-KA-DVH-2024-003-C',
-    ],
-    currentBid: '₹52 Lakhs',
-    transactions: [
-      { from: 'Farmer Cooperative', to: 'Suresh Reddy', amount: '₹45 Lakhs' },
-      { from: 'State Land Board', to: 'Farmer Cooperative', amount: '₹40 Lakhs' },
-    ],
-  },
-];
+import { propertyChaincode, offerChaincode } from '@/services/fabricClient';
+import type { Property } from '@/services/mockDataStore';
 
 export const Properties = () => {
-  const [selectedProperty, setSelectedProperty] = useState<typeof mockProperties[0] | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const { toast } = useToast();
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [offerAmount, setOfferAmount] = useState('');
+  const [offerMessage, setOfferMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
-  const handleViewDetails = (property: typeof mockProperties[0]) => {
-    setSelectedProperty(property);
-    setIsModalOpen(true);
+  useEffect(() => {
+    // Load current user
+    const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    setCurrentUser(user);
+
+    // Load properties
+    loadProperties();
+
+    // Refresh every 3 seconds
+    const interval = setInterval(loadProperties, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadProperties = async () => {
+    try {
+      const result = await propertyChaincode.getAllProperties();
+      if (result.status === 'SUCCESS' && result.payload?.data) {
+        setProperties(result.payload.data);
+      }
+    } catch (error) {
+      console.error('Failed to load properties:', error);
+    }
   };
 
-  const handleBid = () => {
-    toast({
-      title: 'Bid Placed Successfully',
-      description: 'Your bid has been submitted for review.',
-    });
-    setIsModalOpen(false);
+  const handleMakeOffer = (property: Property) => {
+    if (!currentUser?.userId) {
+      toast({
+        title: 'Login Required',
+        description: 'Please login to make an offer',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (property.owner === currentUser.userId) {
+      toast({
+        title: 'Cannot Make Offer',
+        description: 'You cannot make an offer on your own property',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSelectedProperty(property);
+    setOfferAmount(property.price.toString());
+    setOfferMessage('');
+    setShowOfferModal(true);
+  };
+
+  const handleSubmitOffer = async () => {
+    if (!selectedProperty || !currentUser) return;
+
+    const amount = parseFloat(offerAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: 'Invalid Amount',
+        description: 'Please enter a valid offer amount',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const offerId = `OFFER_${Date.now()}`;
+
+      await offerChaincode.createOffer({
+        offerId,
+        propertyId: selectedProperty.propertyId,
+        buyerId: currentUser.userId,
+        buyerName: currentUser.name,
+        sellerId: selectedProperty.owner,
+        sellerName: selectedProperty.ownerName,
+        offerAmount: amount,
+        message: offerMessage,
+      });
+
+      console.log('✅ Offer created successfully:', offerId);
+
+      toast({
+        title: 'Offer Submitted! 🎉',
+        description: 'Your offer has been submitted. The seller will review it. Transaction created.',
+        duration: 5000,
+      });
+
+      setShowOfferModal(false);
+      setSelectedProperty(null);
+      setOfferAmount('');
+      setOfferMessage('');
+    } catch (error: any) {
+      console.error('❌ Offer submission error:', error);
+      toast({
+        title: 'Failed to Submit Offer',
+        description: error?.message || 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'VERIFIED':
+        return 'bg-green-500';
+      case 'PENDING':
+        return 'bg-yellow-500';
+      case 'TRANSFERRED':
+        return 'bg-blue-500';
+      default:
+        return 'bg-gray-500';
+    }
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">My Properties</h1>
-          <p className="text-muted-foreground">Manage and view all your registered properties</p>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Available Properties</h1>
+            <p className="text-muted-foreground">
+              {properties.length === 0
+                ? "No properties listed yet. Be the first to add a property!"
+                : `Browse ${properties.length} blockchain-registered propert${properties.length === 1 ? 'y' : 'ies'}`}
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockProperties.map((property) => (
-            <Card
-              key={property.id}
-              className="border-2 hover:shadow-lg transition-shadow"
-            >
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg">{property.title}</CardTitle>
-                  <Badge
-                    variant={property.status === 'Verified' ? 'default' : 'secondary'}
-                    className={
-                      property.status === 'Verified'
-                        ? 'bg-green-100 text-green-800 hover:bg-green-100'
-                        : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100'
-                    }
-                  >
-                    {property.status}
-                  </Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">ID: {property.id}</p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span>{property.location}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Home className="h-4 w-4 text-muted-foreground" />
-                  <span>{property.area}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                  <DollarSign className="h-4 w-4" />
-                  <span>{property.price}</span>
-                </div>
-                <div className="pt-2">
-                  <Badge variant="outline">{property.type}</Badge>
-                </div>
-                <Button 
-                  className="w-full mt-4" 
-                  variant="outline"
-                  onClick={() => handleViewDetails(property)}
-                >
-                  View Details
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {properties.length === 0 ? (
+          <Card className="border-primary/20">
+            <CardContent className="text-center py-12">
+              <Home className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Properties Available</h3>
+              <p className="text-muted-foreground mb-6">
+                Properties will appear here once they are registered on the blockchain.
+              </p>
+              <Button onClick={() => window.location.href = '/add-property'}>
+                Register Your Property
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {properties.map((property) => (
+              <Card key={property.propertyId} className="hover:shadow-lg transition-shadow border-primary/20">
+                <CardHeader>
+                  <div className="flex justify-between items-start mb-2">
+                    <Badge className={getStatusColor(property.status)}>
+                      {property.status}
+                    </Badge>
+                    <Badge variant="outline">{property.propertyType}</Badge>
+                  </div>
+                  <CardTitle className="text-lg">{property.location}</CardTitle>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    ID: {property.propertyId.substring(0, 20)}...
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      <span>{property.location}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Tag className="h-4 w-4 text-primary" />
+                      <span>{property.area} sq ft</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-green-600" />
+                      <span className="text-lg font-bold">{formatCurrency(property.price)}</span>
+                    </div>
+                  </div>
 
-        <PropertyDetailsModal
-          property={selectedProperty}
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onBid={handleBid}
-        />
+                  <div className="pt-2 border-t">
+                    <div className="text-xs text-muted-foreground mb-2">
+                      <p>Owner: {property.ownerName}</p>
+                      <p>Registered: {new Date(property.registeredAt).toLocaleDateString()}</p>
+                    </div>
+                    {property.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                        {property.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {currentUser?.userId && currentUser.userId !== property.owner && (
+                    <Button
+                      className="w-full bg-gradient-to-r from-primary to-blue-600"
+                      onClick={() => handleMakeOffer(property)}
+                    >
+                      Make an Offer
+                    </Button>
+                  )}
+
+                  {currentUser?.userId === property.owner && (
+                    <div className="text-center text-sm text-muted-foreground py-2 bg-muted rounded">
+                      Your Property
+                    </div>
+                  )}
+
+                  {!currentUser?.userId && (
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => toast({
+                        title: 'Login Required',
+                        description: 'Please login to make an offer',
+                      })}
+                    >
+                      Login to Make Offer
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Make Offer Modal */}
+        <Dialog open={showOfferModal} onOpenChange={setShowOfferModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Make an Offer</DialogTitle>
+              <DialogDescription>
+                Submit your offer for this property. The seller will review and respond.
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedProperty && (
+              <div className="space-y-4 py-4">
+                <div className="bg-muted p-4 rounded-lg">
+                  <p className="text-sm font-medium">{selectedProperty.location}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Listed Price: {formatCurrency(selectedProperty.price)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Owner: {selectedProperty.ownerName}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="offerAmount">Your Offer Amount (₹)</Label>
+                  <Input
+                    id="offerAmount"
+                    type="number"
+                    placeholder="Enter your offer amount"
+                    value={offerAmount}
+                    onChange={(e) => setOfferAmount(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="offerMessage">Message (Optional)</Label>
+                  <Textarea
+                    id="offerMessage"
+                    placeholder="Add a message to the seller..."
+                    value={offerMessage}
+                    onChange={(e) => setOfferMessage(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowOfferModal(false)} disabled={loading}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmitOffer} disabled={loading}>
+                {loading ? 'Submitting...' : 'Submit Offer'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
