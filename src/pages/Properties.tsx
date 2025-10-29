@@ -48,12 +48,19 @@ export const Properties = () => {
 
   const loadProperties = async () => {
     try {
+      console.log('🔄 [Properties] Fetching properties from backend...');
       const result = await apiClient.getAllProperties();
+      console.log('📦 [Properties] Backend response:', result);
+
       if (result.success && result.data) {
+        console.log('✅ [Properties] Got properties:', result.data.length, 'items');
+        console.log('📋 [Properties] Properties data:', result.data);
         setProperties(result.data);
+      } else {
+        console.warn('⚠️ [Properties] Invalid response format:', result);
       }
     } catch (error) {
-      console.error('Failed to load properties:', error);
+      console.error('❌ [Properties] Failed to load properties:', error);
     }
   };
 

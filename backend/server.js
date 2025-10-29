@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = 3001;
@@ -9,14 +11,50 @@ const PORT = 3001;
 app.use(cors());
 app.use(bodyParser.json());
 
-// In-memory data store (syncs with frontend mockDataStore)
-const store = {
-  users: [],
-  properties: [],
-  offers: [],
-  transactions: [],
-  escrows: []
-};
+// File-based persistence
+const DATA_FILE = path.join(__dirname, 'data-store.json');
+
+// Load data from file
+function loadData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const data = fs.readFileSync(DATA_FILE, 'utf8');
+      const parsed = JSON.parse(data);
+      console.log('📂 Loaded data from file:', {
+        users: parsed.users?.length || 0,
+        properties: parsed.properties?.length || 0,
+        offers: parsed.offers?.length || 0,
+        transactions: parsed.transactions?.length || 0
+      });
+      return parsed;
+    }
+  } catch (error) {
+    console.error('⚠️  Error loading data file:', error.message);
+  }
+  return {
+    users: [],
+    properties: [],
+    offers: [],
+    transactions: [],
+    escrows: []
+  };
+}
+
+// Save data to file
+function saveData() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2));
+    console.log('💾 Data saved to file');
+  } catch (error) {
+    console.error('⚠️  Error saving data:', error.message);
+  }
+}
+
+// Auto-save every 10 seconds
+setInterval(saveData, 10000);
+
+// In-memory data store (now persisted to file)
+const store = loadData();
 
 // Helper to create transactions
 function createTransaction(type, data) {
@@ -33,6 +71,7 @@ function createTransaction(type, data) {
   };
   store.transactions.push(transaction);
   console.log('📝 Transaction created:', type, transaction.transactionId);
+  saveData(); // Save immediately after transaction
   return transaction;
 }
 
@@ -83,6 +122,7 @@ app.post('/api/users/register', (req, res) => {
       registeredAt: new Date().toISOString()
     };
     store.users.push(userData);
+    saveData(); // Save immediately
     res.json({ success: true, userId: userData.userId, data: userData });
   } catch (error) {
     console.error('Error:', error);
@@ -115,7 +155,7 @@ app.post('/api/properties/register', (req, res) => {
     };
     store.properties.push(propertyData);
 
-    // Create transaction
+    // Create transaction (saveData() is called inside createTransaction)
     createTransaction('PROPERTY_REGISTERED', {
       propertyId: propertyData.propertyId,
       toOwner: propertyData.owner,
@@ -155,7 +195,7 @@ app.post('/api/offers/create', (req, res) => {
     };
     store.offers.push(offerData);
 
-    // Create transaction
+    // Create transaction (saveData() is called inside createTransaction)
     createTransaction('OFFER_CREATED', {
       propertyId: offerData.propertyId,
       fromOwner: offerData.buyerId,
@@ -302,5 +342,6 @@ app.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\n🛑 Server shutting down...');
+  saveData(); // Save data before exit
   process.exit(0);
 });

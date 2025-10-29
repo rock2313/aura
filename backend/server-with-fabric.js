@@ -17,14 +17,50 @@ let fabricMode = false;
 let gateway = null;
 let contract = null;
 
-// In-memory fallback storage
-const store = {
-  users: [],
-  properties: [],
-  offers: [],
-  transactions: [],
-  escrows: []
-};
+// File-based persistence
+const DATA_FILE = path.join(__dirname, 'data-store.json');
+
+// Load data from file
+function loadData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const data = fs.readFileSync(DATA_FILE, 'utf8');
+      const parsed = JSON.parse(data);
+      console.log('📂 Loaded data from file:', {
+        users: parsed.users?.length || 0,
+        properties: parsed.properties?.length || 0,
+        offers: parsed.offers?.length || 0,
+        transactions: parsed.transactions?.length || 0
+      });
+      return parsed;
+    }
+  } catch (error) {
+    console.error('⚠️  Error loading data file:', error.message);
+  }
+  return {
+    users: [],
+    properties: [],
+    offers: [],
+    transactions: [],
+    escrows: []
+  };
+}
+
+// Save data to file
+function saveData() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2));
+    console.log('💾 Data saved to file');
+  } catch (error) {
+    console.error('⚠️  Error saving data:', error.message);
+  }
+}
+
+// Auto-save every 10 seconds
+setInterval(saveData, 10000);
+
+// In-memory fallback storage (now persisted to file)
+const store = loadData();
 
 // Helper to create transactions (mock mode)
 function createTransaction(type, data) {
@@ -41,6 +77,7 @@ function createTransaction(type, data) {
   };
   store.transactions.push(transaction);
   console.log('📝 Transaction created (mock):', type, transaction.transactionId);
+  saveData(); // Save immediately after transaction
   return transaction;
 }
 
@@ -159,6 +196,7 @@ app.post('/api/users/register', async (req, res) => {
 
     // Always store in mock store for quick queries
     store.users.push({ ...userData, registeredAt: new Date().toISOString() });
+    saveData(); // Save immediately
     res.json({ success: true, userId: userData.userId, data: userData });
   } catch (error) {
     console.error('Error:', error);
@@ -359,6 +397,7 @@ app.listen(PORT, async () => {
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\n🛑 Shutting down gracefully...');
+  saveData(); // Save data before exit
   if (gateway) {
     await gateway.disconnect();
   }

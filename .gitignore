@@ -32,3 +32,4 @@ config/
 # Environment
 .env
 .env.local
+backend/data-store.json
