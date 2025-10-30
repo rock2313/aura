@@ -590,6 +590,14 @@ app.put('/api/offers/:offerId/verify', (req, res) => {
     const { adminId, sepoliaTxHash } = req.body;
     const offer = store.offers.find(o => o.offerId === req.params.offerId);
     if (offer) {
+      // Find the property
+      const property = store.properties.find(p => p.propertyId === offer.propertyId);
+
+      if (!property) {
+        return res.status(404).json({ error: 'Property not found' });
+      }
+
+      // Update offer status
       offer.status = 'ADMIN_VERIFIED';
       offer.adminVerified = true;
       offer.adminId = adminId;
@@ -597,7 +605,21 @@ app.put('/api/offers/:offerId/verify', (req, res) => {
       offer.sepoliaTxHash = sepoliaTxHash;
       offer.updatedAt = new Date().toISOString();
 
-      // Create transaction
+      // Transfer property ownership
+      const previousOwner = property.owner;
+      const previousOwnerName = property.ownerName;
+
+      property.owner = offer.buyerId;
+      property.ownerName = offer.buyerName;
+      property.status = 'TRANSFERRED';
+      property.listedForSale = false; // Remove from marketplace
+      property.lastUpdated = new Date().toISOString();
+
+      console.log(`🔄 Property transferred: ${property.propertyId}`);
+      console.log(`   From: ${previousOwnerName} (${previousOwner})`);
+      console.log(`   To: ${property.ownerName} (${property.owner})`);
+
+      // Create offer verification transaction
       createTransaction('OFFER_VERIFIED', {
         propertyId: offer.propertyId,
         fromOwner: offer.sellerId,
@@ -607,7 +629,21 @@ app.put('/api/offers/:offerId/verify', (req, res) => {
         offerId: offer.offerId
       });
 
-      res.json({ success: true, data: offer });
+      // Create property transfer transaction
+      createTransaction('PROPERTY_TRANSFERRED', {
+        propertyId: property.propertyId,
+        fromOwner: previousOwner,
+        toOwner: property.owner,
+        amount: offer.offerAmount,
+        status: 'COMPLETED',
+        offerId: offer.offerId
+      });
+
+      res.json({
+        success: true,
+        message: 'Offer verified and property ownership transferred',
+        data: { offer, property }
+      });
     } else {
       res.status(404).json({ error: 'Offer not found' });
     }
