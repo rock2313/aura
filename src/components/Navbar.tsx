@@ -13,12 +13,17 @@ export const Navbar = ({ isLoggedIn, userName, userId, onLogout }: NavbarProps) 
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Get current user to show admin-specific links
+  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+
   // All users can access all features (buy and sell)
   const navItems = [
     { path: '/dashboard', label: 'Dashboard' },
     { path: '/properties', label: 'Properties' },
     { path: '/add-property', label: 'Add Property' },
+    { path: '/offers', label: 'Offers' },
     { path: '/transactions', label: 'Transactions' },
+    ...(currentUser.role === 'ADMIN' ? [{ path: '/admin', label: 'Admin' }] : []),
   ];
 
   return (

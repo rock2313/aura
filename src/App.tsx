@@ -10,6 +10,7 @@ import { Dashboard } from "@/pages/Dashboard";
 import { Properties } from "@/pages/Properties";
 import { Transactions } from "@/pages/Transactions";
 import { AddProperty } from "@/pages/AddProperty";
+import { Offers } from "@/pages/Offers";
 import { AdminDashboard } from "@/pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
@@ -80,6 +81,10 @@ const App = () => {
             <Route
               path="/properties"
               element={isLoggedIn ? <Properties /> : <Navigate to="/" replace />}
+            />
+            <Route
+              path="/offers"
+              element={isLoggedIn ? <Offers /> : <Navigate to="/" replace />}
             />
             <Route
               path="/transactions"
