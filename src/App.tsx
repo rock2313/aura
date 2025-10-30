@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
-import { KYC } from "@/pages/KYC";
+import { Login } from "@/pages/Login";
 import { Dashboard } from "@/pages/Dashboard";
 import { Properties } from "@/pages/Properties";
 import { Transactions } from "@/pages/Transactions";
@@ -22,7 +22,22 @@ const App = () => {
     userName: '',
   });
 
-  const handleKYCComplete = (userId: string, userName: string) => {
+  // Check if user is already logged in on mount
+  useEffect(() => {
+    const currentUser = localStorage.getItem('currentUser');
+    if (currentUser) {
+      try {
+        const user = JSON.parse(currentUser);
+        setUserInfo({ userId: user.userId, userName: user.name });
+        setIsLoggedIn(true);
+      } catch (error) {
+        console.error('Failed to parse user data:', error);
+        localStorage.removeItem('currentUser');
+      }
+    }
+  }, []);
+
+  const handleLoginSuccess = (userId: string, userName: string) => {
     setUserInfo({ userId, userName });
     setIsLoggedIn(true);
   };
@@ -54,7 +69,7 @@ const App = () => {
                 isLoggedIn ? (
                   <Navigate to="/dashboard" replace />
                 ) : (
-                  <KYC onComplete={handleKYCComplete} />
+                  <Login onLoginSuccess={handleLoginSuccess} />
                 )
               }
             />

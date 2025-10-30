@@ -282,9 +282,58 @@ app.get('/api/data', (req, res) => {
 });
 
 // User APIs
+app.post('/api/users/login', (req, res) => {
+  try {
+    const { email, password } = req.body;
+    console.log('🔐 Login attempt:', email);
+
+    // Find user by email
+    const user = store.users.find(u => u.email === email);
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not found. Please register first.'
+      });
+    }
+
+    // Verify password (in production, use bcrypt.compare)
+    const passwordHash = btoa(password);
+    if (user.passwordHash !== passwordHash) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid password'
+      });
+    }
+
+    console.log('✅ Login successful:', user.name);
+
+    // Return user data (excluding password)
+    const { passwordHash: _, ...userData } = user;
+    res.json({
+      success: true,
+      message: 'Login successful',
+      data: userData
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/users/register', (req, res) => {
   try {
     console.log('👤 Register user:', req.body.name);
+
+    // Check if user with email already exists
+    const existingUser = store.users.find(u => u.email === req.body.email);
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: 'User with this email already exists'
+      });
+    }
+
     const userData = {
       ...req.body,
       registeredAt: new Date().toISOString()

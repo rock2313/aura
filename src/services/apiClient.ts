@@ -33,6 +33,13 @@ class ApiClient {
   }
 
   // User APIs
+  async login(email: string, password: string) {
+    return this.request('/users/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
   async registerUser(userData: {
     userId: string;
     name: string;
